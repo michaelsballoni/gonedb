@@ -1,5 +1,9 @@
 package gonedb
 
+import (
+	_ "github.com/mattn/go-sqlite3"
+)
+
 type Node struct {
 	Id           int64
 	ParentId     int64
@@ -8,7 +12,7 @@ type Node struct {
 }
 
 /*
-func node create(db& db, int64_t parentNodeId, int64_t nameStringId, int64_t typeStringId = 0) node {
+func node CreateNode(db& db, int64_t parentNodeId, int64_t nameStringId, int64_t typeStringId = 0) node {
 
 }
 
