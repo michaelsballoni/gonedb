@@ -1,7 +1,9 @@
 package gonedb
 
 import (
-	_ "github.com/mattn/go-sqlite3"
+	"errors"
+	"strconv"
+	"strings"
 )
 
 type Node struct {
@@ -12,10 +14,189 @@ type Node struct {
 }
 
 /*
-func node CreateNode(db& db, int64_t parentNodeId, int64_t nameStringId, int64_t typeStringId = 0) node {
+func CreateNode(db *sql.DB, parentNodeId, nameStringId, typeStringId int64) Node {
+	db.Exec(
+}
+*/
 
+// Turn IDs into a string used in a SELECT IN (here)
+// Errors if an empty input is provided
+func IdsToSqlIn(ids []int64) (string, error) {
+	if len(ids) == 0 {
+		return "", errors.New("ids_to_sql_in: called with no IDs")
+	}
+
+	var output strings.Builder
+	for _, id := range ids {
+		if output.Len() > 0 {
+			output.WriteRune(',')
+		}
+		output.WriteString(strconv.FormatInt(id, 10))
+	}
+	return output.String(), nil
 }
 
+// only IDs found between separators are returned
+// nothing in, nothing out
+func StringToIds(str string, separator rune) ([]int64, error) {
+	var ids []int64
+	var collector string
+
+	for _, c := range str {
+		if c == separator {
+			if len(collector) > 0 {
+				v, e := strconv.ParseInt(collector, 10, 64)
+				if e != nil {
+					return ids, e
+				}
+				ids = append(ids, v)
+				collector = ""
+			}
+		} else {
+			collector += string(c)
+		}
+	}
+	if len(collector) > 0 {
+		v, e := strconv.ParseInt(collector, 10, 64)
+		if e != nil {
+			return ids, e
+		}
+		ids = append(ids, v)
+		collector = ""
+	}
+	return ids, nil
+}
+
+// FORNOW: Add unit test for this one!!!
+func IdsToParentsStr(ids []int64) string {
+	if len(ids) == 0 || (len(ids) == 1 && ids[0] == 0) {
+		return ""
+	}
+
+	var output strings.Builder
+	for _, id := range ids {
+		if id != 0 {
+			output.WriteString(strconv.FormatInt(id, 10))
+			output.WriteRune('/')
+		}
+	}
+	return output.String()
+}
+
+/*
+static std::wstring ids_to_parents_str(const std::vector<int64_t>& ids)
+{
+	if (ids.empty() || (ids.size() == 1 && ids[0] == 0))
+		return std::wstring();
+
+	std::wstring output = L"/";
+	for (auto id : ids)
+	{
+		if (id != 0)
+		{
+			output += std::to_wstring(id);
+			output += '/';
+		}
+	}
+	return output;
+}
+
+static std::vector<int64_t> get_parents_node_ids(db& db, int64_t nodeId)
+{
+	if (nodeId == 0)
+		return std::vector<int64_t>();
+
+	auto parents_ids_str_opt =
+		db.execScalarString(L"SELECT parents FROM nodes WHERE id = @nodeId", { {L"@nodeId", nodeId} });
+
+	if (!parents_ids_str_opt.has_value())
+		throw nldberr("get_parents_node_ids: Node not found: " + std::to_string(nodeId));
+	else
+		return str_to_ids(parents_ids_str_opt.value(), '/');
+}
+
+void checkName(const std::wstring& name)
+{
+	if (name.find('/') != std::wstring::npos)
+		throw nldberr("Invalid node name, cannot contain /");
+}
+
+node nodes::create(db& db, int64_t parentNodeId, int64_t nameStringId, int64_t typeStringId, const std::optional<std::wstring>& payload)
+{
+	checkName(strings::get_val(db, nameStringId));
+
+	auto parent_node_ids = get_parents_node_ids(db, parentNodeId);
+	if (parentNodeId != 0)
+		parent_node_ids.push_back(parentNodeId);
+
+	std::wstring parents_str = ids_to_parents_str(parent_node_ids);
+
+	int64_t new_id = -1;
+	if (parents_str.empty() && !payload.has_value())
+	{
+		new_id =
+			db.execInsert
+			(
+				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id) "
+				L"VALUES (@parentNodeId, @nameStringId, @typeStringId)",
+				{
+					{ L"@parentNodeId", parentNodeId },
+					{ L"@nameStringId", nameStringId },
+					{ L"@typeStringId", typeStringId },
+				}
+			);
+	}
+	else if (!payload.has_value())
+	{
+		new_id =
+			db.execInsert
+			(
+				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id, parents) "
+				L"VALUES (@parentNodeId, @nameStringId, @typeStringId, @parents)",
+				{
+					{ L"@parentNodeId", parentNodeId },
+					{ L"@nameStringId", nameStringId },
+					{ L"@typeStringId", typeStringId },
+					{ L"@parents", parents_str },
+				}
+			);
+	}
+	else if (parents_str.empty())
+	{
+		new_id =
+			db.execInsert
+			(
+				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id, payload) "
+				L"VALUES (@parentNodeId, @nameStringId, @typeStringId, @payload)",
+				{
+					{ L"@parentNodeId", parentNodeId },
+					{ L"@nameStringId", nameStringId },
+					{ L"@typeStringId", typeStringId },
+					{ L"@payload", payload.value() }
+				}
+			);
+	}
+	else
+	{
+		new_id =
+			db.execInsert
+			(
+				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id, parents, payload) "
+				L"VALUES (@parentNodeId, @nameStringId, @typeStringId, @parents, @payload)",
+				{
+					{ L"@parentNodeId", parentNodeId },
+					{ L"@nameStringId", nameStringId },
+					{ L"@typeStringId", typeStringId },
+					{ L"@parents", parents_str },
+					{ L"@payload", payload.value() }
+				}
+			);
+	}
+	return node(new_id, parentNodeId, nameStringId, typeStringId, payload);
+}
+
+
+/*
 void copy(db& db, int64_t nodeId, int64_t newParentNodeId);
 void move(db& db, int64_t nodeId, int64_t newParentNodeId);
 void remove(db& db, int64_t nodeId);
