@@ -19,8 +19,8 @@ func TestIdsToSqlIn(t *testing.T) {
 		expected string
 	}{
 		{"One ID", []int64{0}, "0"},
-		{"Two ID", []int64{0, 1}, "0,1"},
-		{"Three ID", []int64{0, 1, 2}, "0,1,2"},
+		{"Two IDs", []int64{0, 1}, "0,1"},
+		{"Three IDs", []int64{0, 1, 2}, "0,1,2"},
 	}
 
 	for _, tc := range testCases {
@@ -50,8 +50,8 @@ func TestStringToIds(t *testing.T) {
 	}{
 		{"No IDs", "", []int64{}},
 		{"One ID", "0", []int64{0}},
-		{"Two ID", "0,1", []int64{0, 1}},
-		{"Three ID", "0,1,2", []int64{0, 1, 2}},
+		{"Two IDs", "0,1", []int64{0, 1}},
+		{"Three IDs", "0,1,2", []int64{0, 1, 2}},
 	}
 
 	for _, tc := range testCases {
@@ -63,6 +63,29 @@ func TestStringToIds(t *testing.T) {
 			}
 			if !slices.Equal(v, tc.expected) {
 				t.Errorf("Called failed: is %v - expected %v", v, tc.expected)
+			}
+		})
+	}
+}
+
+func TestIdsToParentsStr(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []int64
+		expected string
+	}{
+		{"No IDs", []int64{}, ""},
+		{"One ID (null)", []int64{0}, ""},
+		{"One ID (one)", []int64{1}, "1/"},
+		{"Two IDs", []int64{0, 1}, "1/"},
+		{"Three IDs", []int64{0, 1, 2}, "1/2/"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			output := gonedb.IdsToParentsStr(tc.input)
+			if output != tc.expected {
+				t.Errorf("Called failed: is %v - expected %v", output, tc.expected)
 			}
 		})
 	}

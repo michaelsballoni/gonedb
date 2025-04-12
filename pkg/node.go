@@ -40,39 +40,35 @@ func IdsToSqlIn(ids []int64) (string, error) {
 // nothing in, nothing out
 func StringToIds(str string, separator rune) ([]int64, error) {
 	var ids []int64
-	var collector string
+	var collector strings.Builder
 
 	for _, c := range str {
 		if c == separator {
-			if len(collector) > 0 {
-				v, e := strconv.ParseInt(collector, 10, 64)
+			if collector.Len() > 0 {
+				v, e := strconv.ParseInt(collector.String(), 10, 64)
 				if e != nil {
 					return ids, e
 				}
 				ids = append(ids, v)
-				collector = ""
+				collector.Reset()
 			}
 		} else {
-			collector += string(c)
+			collector.WriteRune(c)
 		}
 	}
-	if len(collector) > 0 {
-		v, e := strconv.ParseInt(collector, 10, 64)
+	if collector.Len() > 0 {
+		v, e := strconv.ParseInt(collector.String(), 10, 64)
 		if e != nil {
 			return ids, e
 		}
 		ids = append(ids, v)
-		collector = ""
+		collector.Reset()
 	}
 	return ids, nil
 }
 
-// FORNOW: Add unit test for this one!!!
+// Convert node IDs into an ID path string
 func IdsToParentsStr(ids []int64) string {
-	if len(ids) == 0 || (len(ids) == 1 && ids[0] == 0) {
-		return ""
-	}
-
 	var output strings.Builder
 	for _, id := range ids {
 		if id != 0 {
@@ -84,23 +80,6 @@ func IdsToParentsStr(ids []int64) string {
 }
 
 /*
-static std::wstring ids_to_parents_str(const std::vector<int64_t>& ids)
-{
-	if (ids.empty() || (ids.size() == 1 && ids[0] == 0))
-		return std::wstring();
-
-	std::wstring output = L"/";
-	for (auto id : ids)
-	{
-		if (id != 0)
-		{
-			output += std::to_wstring(id);
-			output += '/';
-		}
-	}
-	return output;
-}
-
 static std::vector<int64_t> get_parents_node_ids(db& db, int64_t nodeId)
 {
 	if (nodeId == 0)
