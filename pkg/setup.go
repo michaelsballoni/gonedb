@@ -7,7 +7,6 @@ import (
 func Setup(db *sql.DB) {
 	// strings
 	db.Exec("CREATE TABLE strings (id INTEGER PRIMARY KEY, val STRING UNIQUE NOT NULL)")
-	db.Exec("CREATE TABLE strings (id INTEGER PRIMARY KEY, val STRING UNIQUE NOT NULL)")
 	db.Exec("INSERT INTO strings (id, val) VALUES (0, '')")
 
 	// nodes

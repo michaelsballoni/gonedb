@@ -1,7 +1,9 @@
 package gonedb
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -12,12 +14,6 @@ type Node struct {
 	NameStringId int64
 	TypeStringId int64
 }
-
-/*
-func CreateNode(db *sql.DB, parentNodeId, nameStringId, typeStringId int64) Node {
-	db.Exec(
-}
-*/
 
 // Turn IDs into a string used in a SELECT IN (here)
 // Errors if an empty input is provided
@@ -47,7 +43,7 @@ func StringToIds(str string, separator rune) ([]int64, error) {
 			if collector.Len() > 0 {
 				v, e := strconv.ParseInt(collector.String(), 10, 64)
 				if e != nil {
-					return ids, e
+					return ids, fmt.Errorf("StringToIds: ParseInt failed: %v", e)
 				}
 				ids = append(ids, v)
 				collector.Reset()
@@ -59,7 +55,7 @@ func StringToIds(str string, separator rune) ([]int64, error) {
 	if collector.Len() > 0 {
 		v, e := strconv.ParseInt(collector.String(), 10, 64)
 		if e != nil {
-			return ids, e
+			return ids, fmt.Errorf("StringToIds: ParseInt failed: %v", e)
 		}
 		ids = append(ids, v)
 		collector.Reset()
@@ -79,25 +75,55 @@ func IdsToParentsStr(ids []int64) string {
 	return output.String()
 }
 
-/*
-static std::vector<int64_t> get_parents_node_ids(db& db, int64_t nodeId)
-{
-	if (nodeId == 0)
-		return std::vector<int64_t>();
+func GetParentsNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
+	if nodeId == 0 {
+		return []int64{}, nil
+	}
 
-	auto parents_ids_str_opt =
-		db.execScalarString(L"SELECT parents FROM nodes WHERE id = @nodeId", { {L"@nodeId", nodeId} });
-
-	if (!parents_ids_str_opt.has_value())
-		throw nldberr("get_parents_node_ids: Node not found: " + std::to_string(nodeId));
-	else
-		return str_to_ids(parents_ids_str_opt.value(), '/');
+	var parents_ids_str string
+	row := db.QueryRow("SELECT parents FROM nodes WHERE id = ?", nodeId)
+	err := row.Scan(&parents_ids_str)
+	if err != nil {
+		return []int64{}, fmt.Errorf("GetParentsNodeIds: Node not found: %d: %v", nodeId, err)
+	} else {
+		return StringToIds(parents_ids_str, '/')
+	}
 }
 
-void checkName(const std::wstring& name)
+func CheckNodeName(name string) error {
+	if strings.Contains(name, "/") {
+		return errors.New("invalid node name, cannot contain /")
+	} else {
+		return nil
+	}
+}
+
+/*
+CreateNode(db *db, parentNodeId int64, nameStringId int64, typeStringId int64): (Node, error)
 {
-	if (name.find('/') != std::wstring::npos)
-		throw nldberr("Invalid node name, cannot contain /");
+	checkName(strings::get_val(db, nameStringId));
+
+	auto parent_node_ids = get_parents_node_ids(db, parentNodeId);
+	if (parentNodeId != 0)
+		parent_node_ids.push_back(parentNodeId);
+
+	std::wstring parents_str = ids_to_parents_str(parent_node_ids);
+
+	int64_t new_id = -1;
+	if (parents_str.empty() && !payload.has_value())
+	{
+		new_id =
+			db.execInsert
+			(
+				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id) "
+				L"VALUES (@parentNodeId, @nameStringId, @typeStringId)",
+				{
+					{ L"@parentNodeId", parentNodeId },
+					{ L"@nameStringId", nameStringId },
+					{ L"@typeStringId", typeStringId },
+				}
+			);
+	}
 }
 
 node nodes::create(db& db, int64_t parentNodeId, int64_t nameStringId, int64_t typeStringId, const std::optional<std::wstring>& payload)

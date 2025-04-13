@@ -90,3 +90,10 @@ func TestIdsToParentsStr(t *testing.T) {
 		})
 	}
 }
+
+func TestGetParentsNodeIds(t *testing.T) {
+	db := GetTestDb("TestGetParentsNodeIds.db")
+	defer db.Close()
+
+	// FORNOW / Create nested nodes to test parent ID paths
+}
