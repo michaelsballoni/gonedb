@@ -3,11 +3,17 @@ package gonedb
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 )
 
+// The API you interact with
+type nodes struct{}
+
+var Nodes nodes
+
+// The struct passed around the API with the core IDs of a node
 type Node struct {
 	Id           int64
 	ParentId     int64
@@ -17,9 +23,9 @@ type Node struct {
 
 // Turn IDs into a string used in a SELECT IN (here)
 // Errors if an empty input is provided
-func IdsToSqlIn(ids []int64) (string, error) {
+func (n *nodes) IdsToSqlIn(ids []int64) (string, error) {
 	if len(ids) == 0 {
-		return "", errors.New("ids_to_sql_in: called with no IDs")
+		return "", errors.New("ids is empty")
 	}
 
 	var output strings.Builder
@@ -32,50 +38,88 @@ func IdsToSqlIn(ids []int64) (string, error) {
 	return output.String(), nil
 }
 
+// Turn a separator-delimited string into a slice of IDs
 // only IDs found between separators are returned
 // nothing in, nothing out
-func StringToIds(str string, separator rune) ([]int64, error) {
-	var ids []int64
-	var collector strings.Builder
-
-	for _, c := range str {
-		if c == separator {
-			if collector.Len() > 0 {
-				v, e := strconv.ParseInt(collector.String(), 10, 64)
-				if e != nil {
-					return ids, fmt.Errorf("StringToIds: ParseInt failed: %v", e)
-				}
-				ids = append(ids, v)
-				collector.Reset()
-			}
-		} else {
-			collector.WriteRune(c)
-		}
+func (n *nodes) StringToIds(str string) ([]int64, error) {
+	sep := "/"
+	if str == "" || str == sep {
+		return []int64{}, nil
 	}
-	if collector.Len() > 0 {
-		v, e := strconv.ParseInt(collector.String(), 10, 64)
+
+	strs := strings.Split(str, sep)
+	ids := make([]int64, len(strs))
+	for i, v := range strs {
+		n, e := strconv.ParseInt(v, 10, 64)
 		if e != nil {
-			return ids, fmt.Errorf("StringToIds: ParseInt failed: %v", e)
+			return []int64{}, e
 		}
-		ids = append(ids, v)
-		collector.Reset()
+		ids[i] = n
 	}
 	return ids, nil
 }
 
-// Convert node IDs into an ID path string
-func IdsToParentsStr(ids []int64) string {
-	var output strings.Builder
+// Convert IDs into an ID path string
+func (n *nodes) IdsToParentsStr(ids []int64) string {
+	if len(ids) == 0 || (len(ids) == 1 && ids[0] == 0) {
+		return ""
+	}
+
+	strs := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if id != 0 {
-			output.WriteString(strconv.FormatInt(id, 10))
-			output.WriteRune('/')
+			strs = append(strs, strconv.FormatInt(id, 10))
 		}
 	}
-	return output.String()
+	return strings.Join(strs, string('/')) + "/"
 }
 
-func GetParentsNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
+// Create a new node
+func (n *nodes) Create(db *sql.DB, parentNodeId int64, nameStringId int64, typeStringId int64) (Node, error) {
+	parent_node_ids, err := n.GetParentsNodeIds(db, parentNodeId)
+	if err != nil {
+		return Node{}, err
+	}
+	if parentNodeId != 0 {
+		parent_node_ids = append(parent_node_ids, parentNodeId)
+	}
+
+	parents_str := n.IdsToParentsStr(parent_node_ids)
+
+	var new_id int64
+	row := db.QueryRow("INSERT INTO nodes (parent_id, name_string_id, type_string_id, parents) VALUES (?, ?, ?, ?) RETURNING id",
+		parentNodeId,
+		nameStringId,
+		typeStringId,
+		parents_str)
+	err = row.Scan(&new_id)
+	if err != nil {
+		return Node{}, err
+	} else {
+		return Node{Id: new_id, ParentId: parentNodeId, NameStringId: nameStringId, TypeStringId: typeStringId}, nil
+	}
+}
+
+func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
+	found_node, found := n.GetFromCache(nodeId)
+	if found {
+		return found_node, nil
+	}
+
+	var ret_node Node
+	ret_node.Id = nodeId
+	row := db.QueryRow("SELECT parent_id, name_string_id, type_string_id FROM nodes WHERE id = ?", nodeId)
+	err := row.Scan(&ret_node.ParentId, &ret_node.NameStringId, &ret_node.TypeStringId)
+	if err != nil {
+		return Node{}, err
+	} else {
+		n.PutIntoCache(ret_node)
+		return ret_node, nil
+	}
+}
+
+// Get the node ID parents of a node
+func (n *nodes) GetParentsNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
 	if nodeId == 0 {
 		return []int64{}, nil
 	}
@@ -84,122 +128,11 @@ func GetParentsNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
 	row := db.QueryRow("SELECT parents FROM nodes WHERE id = ?", nodeId)
 	err := row.Scan(&parents_ids_str)
 	if err != nil {
-		return []int64{}, fmt.Errorf("GetParentsNodeIds: Node not found: %d: %v", nodeId, err)
+		return []int64{}, err
 	} else {
-		return StringToIds(parents_ids_str, '/')
+		return n.StringToIds(parents_ids_str)
 	}
 }
-
-func CheckNodeName(name string) error {
-	if strings.Contains(name, "/") {
-		return errors.New("invalid node name, cannot contain /")
-	} else {
-		return nil
-	}
-}
-
-/*
-CreateNode(db *db, parentNodeId int64, nameStringId int64, typeStringId int64): (Node, error)
-{
-	checkName(strings::get_val(db, nameStringId));
-
-	auto parent_node_ids = get_parents_node_ids(db, parentNodeId);
-	if (parentNodeId != 0)
-		parent_node_ids.push_back(parentNodeId);
-
-	std::wstring parents_str = ids_to_parents_str(parent_node_ids);
-
-	int64_t new_id = -1;
-	if (parents_str.empty() && !payload.has_value())
-	{
-		new_id =
-			db.execInsert
-			(
-				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id) "
-				L"VALUES (@parentNodeId, @nameStringId, @typeStringId)",
-				{
-					{ L"@parentNodeId", parentNodeId },
-					{ L"@nameStringId", nameStringId },
-					{ L"@typeStringId", typeStringId },
-				}
-			);
-	}
-}
-
-node nodes::create(db& db, int64_t parentNodeId, int64_t nameStringId, int64_t typeStringId, const std::optional<std::wstring>& payload)
-{
-	checkName(strings::get_val(db, nameStringId));
-
-	auto parent_node_ids = get_parents_node_ids(db, parentNodeId);
-	if (parentNodeId != 0)
-		parent_node_ids.push_back(parentNodeId);
-
-	std::wstring parents_str = ids_to_parents_str(parent_node_ids);
-
-	int64_t new_id = -1;
-	if (parents_str.empty() && !payload.has_value())
-	{
-		new_id =
-			db.execInsert
-			(
-				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id) "
-				L"VALUES (@parentNodeId, @nameStringId, @typeStringId)",
-				{
-					{ L"@parentNodeId", parentNodeId },
-					{ L"@nameStringId", nameStringId },
-					{ L"@typeStringId", typeStringId },
-				}
-			);
-	}
-	else if (!payload.has_value())
-	{
-		new_id =
-			db.execInsert
-			(
-				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id, parents) "
-				L"VALUES (@parentNodeId, @nameStringId, @typeStringId, @parents)",
-				{
-					{ L"@parentNodeId", parentNodeId },
-					{ L"@nameStringId", nameStringId },
-					{ L"@typeStringId", typeStringId },
-					{ L"@parents", parents_str },
-				}
-			);
-	}
-	else if (parents_str.empty())
-	{
-		new_id =
-			db.execInsert
-			(
-				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id, payload) "
-				L"VALUES (@parentNodeId, @nameStringId, @typeStringId, @payload)",
-				{
-					{ L"@parentNodeId", parentNodeId },
-					{ L"@nameStringId", nameStringId },
-					{ L"@typeStringId", typeStringId },
-					{ L"@payload", payload.value() }
-				}
-			);
-	}
-	else
-	{
-		new_id =
-			db.execInsert
-			(
-				L"INSERT INTO nodes (parent_id, name_string_id, type_string_id, parents, payload) "
-				L"VALUES (@parentNodeId, @nameStringId, @typeStringId, @parents, @payload)",
-				{
-					{ L"@parentNodeId", parentNodeId },
-					{ L"@nameStringId", nameStringId },
-					{ L"@typeStringId", typeStringId },
-					{ L"@parents", parents_str },
-					{ L"@payload", payload.value() }
-				}
-			);
-	}
-	return node(new_id, parentNodeId, nameStringId, typeStringId, payload);
-}
-
 
 /*
 void copy(db& db, int64_t nodeId, int64_t newParentNodeId);
@@ -227,3 +160,39 @@ std::optional<std::vector<node>> get_path_nodes(db& db, const std::wstring& path
 
 std::optional<std::wstring> get_path_to_parent_like(db& db, const std::wstring& path);
 */
+
+var g_cacheLock sync.RWMutex
+var g_cache = make(map[int64]Node)
+
+func (n *nodes) GetFromCache(id int64) (Node, bool) {
+	g_cacheLock.RLock()
+	defer g_cacheLock.RUnlock()
+	node, found := g_cache[id]
+	return node, found
+}
+
+func (n *nodes) PutIntoCache(node Node) {
+	g_cacheLock.Lock()
+	g_cache[node.Id] = node
+	g_cacheLock.Unlock()
+}
+
+func (n *nodes) FlushCache() {
+	g_cacheLock.Lock()
+	clear(g_cache)
+	g_cacheLock.Unlock()
+}
+
+func (n *nodes) InvalidateCache1(nodeId int64) {
+	g_cacheLock.Lock()
+	delete(g_cache, nodeId)
+	g_cacheLock.Unlock()
+}
+
+func (n *nodes) InvalidateCacheN(nodeIds []int64) {
+	g_cacheLock.Lock()
+	for _, nodeId := range nodeIds {
+		delete(g_cache, nodeId)
+	}
+	g_cacheLock.Unlock()
+}
