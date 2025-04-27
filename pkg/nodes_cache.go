@@ -1,0 +1,43 @@
+package gonedb
+
+import "sync"
+
+type cache struct{}
+
+var NodeCache cache
+
+var g_cacheLock sync.RWMutex
+var g_cache = make(map[int64]Node)
+
+func (n *cache) GetFromCache(id int64) (Node, bool) {
+	g_cacheLock.RLock()
+	defer g_cacheLock.RUnlock()
+	node, found := g_cache[id]
+	return node, found
+}
+
+func (n *cache) PutIntoCache(node Node) {
+	g_cacheLock.Lock()
+	g_cache[node.Id] = node
+	g_cacheLock.Unlock()
+}
+
+func (n *cache) FlushCache() {
+	g_cacheLock.Lock()
+	clear(g_cache)
+	g_cacheLock.Unlock()
+}
+
+func (n *cache) InvalidateCache1(nodeId int64) {
+	g_cacheLock.Lock()
+	delete(g_cache, nodeId)
+	g_cacheLock.Unlock()
+}
+
+func (n *cache) InvalidateCacheN(nodeIds []int64) {
+	g_cacheLock.Lock()
+	for _, nodeId := range nodeIds {
+		delete(g_cache, nodeId)
+	}
+	g_cacheLock.Unlock()
+}

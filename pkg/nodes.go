@@ -2,10 +2,8 @@ package gonedb
 
 import (
 	"database/sql"
-	"errors"
+	"fmt"
 	"strconv"
-	"strings"
-	"sync"
 )
 
 // The API you interact with
@@ -21,70 +19,17 @@ type Node struct {
 	TypeStringId int64
 }
 
-// Turn IDs into a string used in a SELECT IN (here)
-// Errors if an empty input is provided
-func (n *nodes) IdsToSqlIn(ids []int64) (string, error) {
-	if len(ids) == 0 {
-		return "", errors.New("ids is empty")
-	}
-
-	var output strings.Builder
-	for _, id := range ids {
-		if output.Len() > 0 {
-			output.WriteRune(',')
-		}
-		output.WriteString(strconv.FormatInt(id, 10))
-	}
-	return output.String(), nil
-}
-
-// Turn a separator-delimited string into a slice of IDs
-// only IDs found between separators are returned
-// nothing in, nothing out
-func (n *nodes) StringToIds(str string) ([]int64, error) {
-	sep := "/"
-	if str == "" || str == sep {
-		return []int64{}, nil
-	}
-
-	strs := strings.Split(str, sep)
-	ids := make([]int64, len(strs))
-	for i, v := range strs {
-		n, e := strconv.ParseInt(v, 10, 64)
-		if e != nil {
-			return []int64{}, e
-		}
-		ids[i] = n
-	}
-	return ids, nil
-}
-
-// Convert IDs into an ID path string
-func (n *nodes) IdsToParentsStr(ids []int64) string {
-	if len(ids) == 0 || (len(ids) == 1 && ids[0] == 0) {
-		return ""
-	}
-
-	strs := make([]string, 0, len(ids))
-	for _, id := range ids {
-		if id != 0 {
-			strs = append(strs, strconv.FormatInt(id, 10))
-		}
-	}
-	return strings.Join(strs, string('/')) + "/"
-}
-
 // Create a new node
 func (n *nodes) Create(db *sql.DB, parentNodeId int64, nameStringId int64, typeStringId int64) (Node, error) {
+	// Add parents of the parent
 	parent_node_ids, err := n.GetParentsNodeIds(db, parentNodeId)
 	if err != nil {
 		return Node{}, err
-	}
-	if parentNodeId != 0 {
+	} else if parentNodeId != 0 { // append the parent to its path to make our own
 		parent_node_ids = append(parent_node_ids, parentNodeId)
 	}
 
-	parents_str := n.IdsToParentsStr(parent_node_ids)
+	parents_str := NodeUtils.IdsToParentsStr(parent_node_ids)
 
 	var new_id int64
 	row := db.QueryRow("INSERT INTO nodes (parent_id, name_string_id, type_string_id, parents) VALUES (?, ?, ?, ?) RETURNING id",
@@ -100,22 +45,324 @@ func (n *nodes) Create(db *sql.DB, parentNodeId int64, nameStringId int64, typeS
 	}
 }
 
+// Copy a node to another parent node, deep copy.
+func (n *nodes) Copy(db *sql.DB, nodeId int64, newParentNodeId int64) (int64, error) {
+	if nodeId == newParentNodeId {
+		return 0, fmt.Errorf("Cannot copy node into itself")
+	}
+
+	// You can't copy this into a child of this
+	{
+		like_str, like_err := n.GetChildNodesLikeExpression(db, nodeId)
+		if like_err != nil {
+			return 0, nil
+		}
+
+		var cur_id int64
+		rows, rows_err := db.Query("SELECT id FROM nodes WHERE parents LIKE ?", like_str)
+		if rows_err != nil {
+			return 0, rows_err
+		}
+		for rows.Next() {
+			scan_err := rows.Scan(&cur_id)
+			if scan_err != nil {
+				return 0, scan_err
+			}
+			if cur_id == newParentNodeId {
+				return 0, fmt.Errorf("Cannot copy node into child of source")
+			}
+		}
+	}
+
+	seen_node_ids := make(map[int64]bool)
+	src_node, src_err := n.Get(db, nodeId)
+	if src_err != nil {
+		return -1, src_err
+	}
+	parent_node, parent_err := n.Get(db, newParentNodeId)
+	if parent_err != nil {
+		return -1, parent_err
+	}
+	new_id, copy_err := doCopy(db, src_node, parent_node, seen_node_ids)
+	return new_id, copy_err
+}
+
+// Recursive Copy workhorse routine
+func doCopy(db *sql.DB, srcNode Node, destNode Node, seenNodeIds map[int64]bool) (int64, error) {
+	new_node, new_err := Nodes.Create(db, destNode.Id, srcNode.NameStringId, srcNode.TypeStringId)
+	if new_err != nil {
+		return -1, new_err
+	}
+
+	cur_nodes, cur_err := Nodes.GetChildren(db, srcNode.Id)
+	if cur_err != nil {
+		return -1, cur_err
+	}
+	for _, cur_node := range cur_nodes {
+		if seenNodeIds[cur_node.Id] {
+			return -1, fmt.Errorf("Cannot copy a node into its children")
+		} else {
+			seenNodeIds[cur_node.Id] = true
+		}
+		_, copy_err := doCopy(db, cur_node, new_node, seenNodeIds)
+		if copy_err != nil {
+			return -1, copy_err
+		}
+	}
+	return new_node.Id, nil
+}
+
+// Move a node to under a new parent node
+func (n *nodes) Move(db *sql.DB, nodeId int64, newParentNodeId int64) error {
+	// check inputs
+	if nodeId == 0 {
+		return fmt.Errorf("Cannot move null node")
+	}
+
+	// collect all children node IDs
+	child_node_ids := []int64{}
+	child_nodes_like, child_nodes_like_err := n.GetChildNodesLikeExpression(db, nodeId)
+	if child_nodes_like_err != nil {
+		return child_nodes_like_err
+	}
+	var cur_id int64
+	query, query_err := db.Query("SELECT id FROM nodes WHERE parents LIKE ?", child_nodes_like)
+	if query_err != nil {
+		return query_err
+	}
+	for query.Next() {
+		scan_err := query.Scan(&cur_id)
+		if scan_err != nil {
+			return scan_err
+		}
+		child_node_ids = append(child_node_ids, cur_id)
+	}
+
+	// compute the new parents for the node
+	parents_node_ids, parents_err := n.GetParentsNodeIds(db, newParentNodeId)
+	if parents_err != nil {
+		return parents_err
+	}
+	if newParentNodeId != 0 {
+		parents_node_ids = append(parents_node_ids, newParentNodeId)
+	}
+	new_parents_str := NodeUtils.IdsToParentsStr(parents_node_ids)
+
+	// update the nodes parent and parents
+	{
+		result, err := db.Exec("UPDATE nodes SET parent_id = ?, parents = ? WHERE id = ?", newParentNodeId, new_parents_str, nodeId)
+		if err != nil {
+			return err
+		}
+		result_affected, _ := result.RowsAffected()
+		if result_affected != 1 {
+			return fmt.Errorf("Node not moved")
+		}
+	}
+	NodeCache.InvalidateCache1(nodeId)
+
+	// update the parents of all children nodes
+	for _, child_id := range child_node_ids {
+		child_parent_ids, child_parent_err := n.GetParentsNodeIds(db, child_id)
+		if child_parent_err != nil {
+			return child_parent_err
+		}
+		new_parents_str := NodeUtils.IdsToParentsStr(child_parent_ids)
+		result, err := db.Exec("UPDATE nodes SET parents = ? WHERE id = ?", new_parents_str, child_id)
+		if err != nil {
+			return err
+		}
+
+		result_affected, _ := result.RowsAffected()
+		if result_affected != 1 {
+			return fmt.Errorf("Node not moved")
+		}
+		NodeCache.InvalidateCache1(child_id)
+	}
+
+	return nil
+}
+
+// Delete a node and all of its children
+func (n *nodes) Remove(db *sql.DB, nodeId int64) error {
+	// check inputs
+	if nodeId == 0 {
+		return fmt.Errorf("Cannot remove null node")
+	}
+
+	// collect all children node IDs
+	child_node_ids, child_node_err := n.GetAllChildNodeIds(db, nodeId)
+	if child_node_err != nil {
+		return child_node_err
+	}
+
+	// delete the children nodes
+	if len(child_node_ids) > 0 {
+		ids, ids_err := NodeUtils.IdsToSqlIn(child_node_ids)
+		if ids_err != nil {
+			return ids_err
+		}
+		del_result, del_err := db.Exec("DELETE FROM nodes WHERE id IN (" + ids + ")")
+		if del_err != nil {
+			return del_err
+		}
+		del_count, _ := del_result.RowsAffected()
+		if del_count != int64(len(child_node_ids)) {
+			return fmt.Errorf("Not all child nodes removed")
+		}
+		NodeCache.InvalidateCacheN(child_node_ids)
+	}
+
+	// delete the node
+	{
+		del_result, del_err := db.Exec("DELETE FROM nodes WHERE id = ?", nodeId)
+		if del_err != nil {
+			return del_err
+		}
+		del_count, _ := del_result.RowsAffected()
+		if del_count != 1 {
+			return fmt.Errorf("Node not removed")
+		}
+	}
+	NodeCache.InvalidateCache1(nodeId)
+	return nil
+}
+
+// Rename a node, ensuring an existing node in the same parent does not exist
+func (n *nodes) Rename(db *sql.DB, nodeId int64, newNameStringId int64) error {
+	if nodeId == 0 {
+		return fmt.Errorf("Cannot rename null node")
+	}
+
+	parent_node, parent_err := n.GetParent(db, nodeId)
+	if parent_err != nil {
+		return parent_err
+	}
+	parent_id := parent_node.Id
+	_, existing_err := n.GetNodeInParent(db, parent_id, newNameStringId)
+	if existing_err == nil {
+		return fmt.Errorf("Node with new name already exists")
+	}
+
+	result, err := db.Exec("UPDATE nodes SET name_string_id = ? WHERE id = ?", newNameStringId, nodeId)
+	if err != nil {
+		return err
+	} else {
+		result_count, result_err := result.RowsAffected()
+		if result_err != nil {
+			return result_err
+		} else if result_count != 1 {
+			return fmt.Errorf("Node not renamed")
+		}
+	}
+
+	NodeCache.InvalidateCache1(nodeId)
+	return nil
+}
+
+// Get the payload of a node
+func (n *nodes) GetPayload(db *sql.DB, nodeId int64) (string, error) {
+	var output string
+	row := db.QueryRow("SELECT payload FROM nodes WHERE id = ?", nodeId)
+	return output, row.Scan(&output)
+}
+
+// Set the payload of a node
+func (n *nodes) SetPayload(db *sql.DB, nodeId int64, payload string) error {
+	result, err := db.Exec("UPDATE nodes SET payload = ? WHERE id = ?", payload, nodeId)
+	if err != nil {
+		return err
+	}
+	affected, affected_err := result.RowsAffected()
+	if affected_err != nil {
+		return affected_err
+	}
+	if affected != 1 {
+		return fmt.Errorf("Row not affected")
+	} else {
+		return nil
+	}
+}
+
+// Get nodes leading up to a given node by ID
+func (n *nodes) GetParentPath(db *sql.DB, nodeId int64) ([]Node, error) {
+	if nodeId == 0 {
+		return []Node{}, nil
+	}
+
+	parent_node_ids, parent_node_ids_err := n.GetParentsNodeIds(db, nodeId)
+	if parent_node_ids_err != nil {
+		return []Node{}, parent_node_ids_err
+	} else if len(parent_node_ids) == 0 {
+		return []Node{}, nil
+	}
+
+	sql_in, sql_in_err := NodeUtils.IdsToSqlIn(parent_node_ids)
+	if sql_in_err != nil {
+		return []Node{}, sql_in_err
+	}
+	sql := "SELECT id, parent_id, name_string_id, type_string_id FROM nodes WHERE id IN (" + sql_in + ")"
+	rows, query_err := db.Query(sql)
+	if query_err != nil {
+		return []Node{}, query_err
+	}
+	collector := make(map[int64]Node, len(parent_node_ids))
+	var id, parent_id, name_string_id, type_string_id int64
+	for rows.Next() {
+		scan_err := rows.Scan(&id, &parent_id, &name_string_id, &type_string_id)
+		if scan_err != nil {
+			return []Node{}, scan_err
+		}
+		collector[id] = Node{Id: id, ParentId: parent_id, NameStringId: name_string_id, TypeStringId: type_string_id}
+	}
+
+	output := make([]Node, 0, len(parent_node_ids))
+	for _, parent_node_id := range parent_node_ids {
+		found_node, ok := collector[parent_node_id]
+		if !ok {
+			return []Node{}, fmt.Errorf("Parent node in path not found")
+		} else {
+			output = append(output, found_node)
+		}
+	}
+	return output, nil
+}
+
+// Get a node given an ID
 func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
-	found_node, found := n.GetFromCache(nodeId)
+	found_node, found := NodeCache.GetFromCache(nodeId)
 	if found {
 		return found_node, nil
 	}
 
-	var ret_node Node
-	ret_node.Id = nodeId
+	var output Node
+	output.Id = nodeId
 	row := db.QueryRow("SELECT parent_id, name_string_id, type_string_id FROM nodes WHERE id = ?", nodeId)
-	err := row.Scan(&ret_node.ParentId, &ret_node.NameStringId, &ret_node.TypeStringId)
+	err := row.Scan(&output.ParentId, &output.NameStringId, &output.TypeStringId)
 	if err != nil {
 		return Node{}, err
 	} else {
-		n.PutIntoCache(ret_node)
-		return ret_node, nil
+		NodeCache.PutIntoCache(output)
+		return output, nil
 	}
+}
+
+// Get the parent of a node
+func (n *nodes) GetParent(db *sql.DB, nodeId int64) (Node, error) {
+	var node Node
+	row := db.QueryRow("SELECT id, parent_id, name_string_id, type_string_id FROM nodes WHERE id = (SELECT parent_id FROM nodes WHERE id = ?)", nodeId)
+	err := row.Scan(&node.Id, &node.ParentId, &node.NameStringId, &node.TypeStringId)
+	return node, err
+}
+
+// Get the node in a parent by anem
+func (n *nodes) GetNodeInParent(db *sql.DB, parentNodeId int64, nameStringId int64) (Node, error) {
+	var node Node
+	node.ParentId = parentNodeId
+	node.NameStringId = nameStringId
+	row := db.QueryRow("SELECT id, type_string_id FROM nodes WHERE parent_id = ? AND name_string_id = ?", parentNodeId, nameStringId)
+	err := row.Scan(&node.Id, &node.TypeStringId)
+	return node, err
 }
 
 // Get the node ID parents of a node
@@ -130,69 +377,66 @@ func (n *nodes) GetParentsNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
 	if err != nil {
 		return []int64{}, err
 	} else {
-		return n.StringToIds(parents_ids_str)
+		return NodeUtils.StringToIds(parents_ids_str)
 	}
+}
+
+// Get the IDs of all children of a given node ID, deep
+func (n *nodes) GetAllChildNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
+	child_node_ids := []int64{}
+	child_nodes_like, child_nodes_like_err := n.GetChildNodesLikeExpression(db, nodeId)
+	if child_nodes_like_err != nil {
+		return []int64{}, child_nodes_like_err
+	}
+	query, query_err := db.Query("SELECT id FROM nodes WHERE parents LIKE ?", child_nodes_like)
+	if query_err != nil {
+		return []int64{}, query_err
+	}
+	var cur_id int64
+	for query.Next() {
+		scan_err := query.Scan(&cur_id)
+		if scan_err != nil {
+			return []int64{}, scan_err
+		}
+		child_node_ids = append(child_node_ids, cur_id)
+	}
+	return child_node_ids, nil
+}
+
+// Get the children node structs of a given node by ID, shallow
+func (n *nodes) GetChildren(db *sql.DB, nodeId int64) ([]Node, error) {
+	child_nodes := []Node{}
+	rows, err := db.Query("SELECT id, parent_id, name_string_id, type_string_id FROM nodes WHERE id <> 0 AND parent_id = ?", nodeId)
+	if err != nil {
+		return []Node{}, err
+	}
+	var cur_output_node Node
+	for rows.Next() {
+		scan_err := rows.Scan(&cur_output_node.Id, &cur_output_node.ParentId, &cur_output_node.NameStringId, &cur_output_node.TypeStringId)
+		if scan_err != nil {
+			return []Node{}, scan_err
+		} else {
+			child_nodes = append(child_nodes, cur_output_node)
+		}
+	}
+	return child_nodes, nil
+}
+
+// Get the LIKE expression for returing the child nodes in a SQL query agains the nodes table
+func (n *nodes) GetChildNodesLikeExpression(db *sql.DB, nodeId int64) (string, error) {
+	var original_node_parents string
+	row := db.QueryRow("SELECT parents FROM nodes WHERE id = ?", nodeId)
+	err := row.Scan(&original_node_parents)
+	if err != nil {
+		return "", err
+	} else if original_node_parents == "" || original_node_parents[len(original_node_parents)-1] != '/' {
+		original_node_parents = "/"
+	}
+	original_node_parents = original_node_parents + strconv.FormatInt(nodeId, 10) + "/%"
+	return original_node_parents, nil
 }
 
 /*
-void copy(db& db, int64_t nodeId, int64_t newParentNodeId);
-void move(db& db, int64_t nodeId, int64_t newParentNodeId);
-void remove(db& db, int64_t nodeId);
-void rename(db& db, int64_t nodeId, int64_t newNameStringId);
-
-std::wstring get_payload(db& db, int64_t nodeId);
-void set_payload(db& db, int64_t nodeId, const std::wstring& payload);
-
-node get(db& db, int64_t nodeId);
-void invalidate_cache(int64_t nodeId);
-void invalidate_cache(const std::vector<int64_t>& nodeIds);
-void flush_cache();
-std::optional<node> get_node_in_parent(db& db, int64_t parentNodeId, int64_t nameStringId);
-
-node get_parent(db& db, int64_t nodeId);
-std::vector<node> get_parents(db& db, int64_t nodeId);
-std::vector<node> get_children(db& db, int64_t nodeId);
-std::vector<node> get_all_children(db& db, int64_t nodeId);
-
-std::vector<node> get_path(db& db, const node& cur);
-std::wstring get_path_str(db& db, const node& cur);
-std::optional<std::vector<node>> get_path_nodes(db& db, const std::wstring& path);
-
-std::optional<std::wstring> get_path_to_parent_like(db& db, const std::wstring& path);
+FORNOW - Code a slice of node names -> slice of nodes function as needed
+std::optional<std::vector<node>> get_path_nodes(db& db, const std::vector<std::wstring>>& path);
 */
-
-var g_cacheLock sync.RWMutex
-var g_cache = make(map[int64]Node)
-
-func (n *nodes) GetFromCache(id int64) (Node, bool) {
-	g_cacheLock.RLock()
-	defer g_cacheLock.RUnlock()
-	node, found := g_cache[id]
-	return node, found
-}
-
-func (n *nodes) PutIntoCache(node Node) {
-	g_cacheLock.Lock()
-	g_cache[node.Id] = node
-	g_cacheLock.Unlock()
-}
-
-func (n *nodes) FlushCache() {
-	g_cacheLock.Lock()
-	clear(g_cache)
-	g_cacheLock.Unlock()
-}
-
-func (n *nodes) InvalidateCache1(nodeId int64) {
-	g_cacheLock.Lock()
-	delete(g_cache, nodeId)
-	g_cacheLock.Unlock()
-}
-
-func (n *nodes) InvalidateCacheN(nodeIds []int64) {
-	g_cacheLock.Lock()
-	for _, nodeId := range nodeIds {
-		delete(g_cache, nodeId)
-	}
-	g_cacheLock.Unlock()
-}
