@@ -6,9 +6,9 @@ import (
 	"strconv"
 )
 
-// The API you interact with
 type nodes struct{}
 
+// The API you interact with
 var Nodes nodes
 
 // The struct passed around the API with the core IDs of a node
@@ -264,7 +264,8 @@ func (n *nodes) Rename(db *sql.DB, nodeId int64, newNameStringId int64) error {
 func (n *nodes) GetPayload(db *sql.DB, nodeId int64) (string, error) {
 	var output string
 	row := db.QueryRow("SELECT payload FROM nodes WHERE id = ?", nodeId)
-	return output, row.Scan(&output)
+	err := row.Scan(&output)
+	return output, err
 }
 
 // Set the payload of a node

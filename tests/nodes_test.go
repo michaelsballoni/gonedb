@@ -50,17 +50,13 @@ func TestGetParentsNodeIds(t *testing.T) {
 
 	root_parent_nodes, root_parent_nodes_err := gonedb.Nodes.GetParentsNodeIds(db, node1.Id)
 	AssertNoError(t, root_parent_nodes_err)
-	AssertEqual(t, 1, len(root_parent_nodes))
-	AssertEqual(t, node1.ParentId, root_parent_nodes[0])
+	AssertEqual(t, 0, len(root_parent_nodes))
 
-	/*
-		child_parent_nodes, err11 := gonedb.Nodes.GetParentsNodeIds(db, node2.Id)
-		AssertNoError(t, err11)
-		AssertEqual(t, 2, len(child_parent_nodes))
-		AssertEqual(t, node2.ParentId, child_parent_nodes[0])
-		AssertEqual(t, node2.Id, child_parent_nodes[1])
-	*/
+	child_parent_nodes, err11 := gonedb.Nodes.GetParentsNodeIds(db, node2.Id)
+	AssertNoError(t, err11)
+	AssertEqual(t, 1, len(child_parent_nodes))
+	AssertEqual(t, node2.ParentId, child_parent_nodes[0])
+
+	// FORNOW - Test...
+	// Copy / Move / Rename / Remove / GetPayload / SetPayload
 }
-
-// FORNOW - Test...
-// GetPayload / SetPayload

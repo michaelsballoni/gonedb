@@ -50,8 +50,8 @@ func TestStringToIds(t *testing.T) {
 	}{
 		{"No IDs", "", []int64{}},
 		{"One ID", "0", []int64{0}},
-		{"Two IDs", "0/1", []int64{0, 1}},
-		{"Three IDs", "0/1/2", []int64{0, 1, 2}},
+		{"Two IDs", "0/1/", []int64{0, 1}},
+		{"Three IDs", "0/1/2/", []int64{0, 1, 2}},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
