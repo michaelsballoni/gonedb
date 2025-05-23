@@ -11,8 +11,8 @@ var g_cache = make(map[int64]Node)
 
 func (n *cache) Get(id int64) (Node, bool) {
 	g_cacheLock.RLock()
-	defer g_cacheLock.RUnlock()
 	node, found := g_cache[id]
+	g_cacheLock.RUnlock()
 	return node, found
 }
 
