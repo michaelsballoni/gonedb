@@ -106,4 +106,144 @@ func TestNodeCopy(t *testing.T) {
 	AssertEqual(grandchild_node2.TypeStringId, copy_grandchildren[1].TypeStringId)
 }
 
-// FORNOW: Test Move, Rename, Remove, Get/Set Payloads, others?
+func TestNodeMove(t *testing.T) {
+	db := GetTestDb("TestNodeMove.db")
+	defer db.Close()
+
+	// set up root, kid, and grandkids
+	root_node, root_node_err := gonedb.Nodes.Create(db, 0, GetTestStringId(db, "foobar"), GetTestStringId(db, "root"))
+	AssertNoError(root_node_err)
+
+	child_node, child_node_err := gonedb.Nodes.Create(db, root_node.Id, GetTestStringId(db, "bletmonkey"), GetTestStringId(db, "child"))
+	AssertNoError(child_node_err)
+
+	grandchild_node1, grandchild_node1_err := gonedb.Nodes.Create(db, child_node.Id, GetTestStringId(db, "funkadelic"), GetTestStringId(db, "grandkid"))
+	AssertNoError(grandchild_node1_err)
+
+	grandchild_node2, grandchild_node2_err := gonedb.Nodes.Create(db, child_node.Id, GetTestStringId(db, "superfly"), GetTestStringId(db, "grandkid"))
+	AssertNoError(grandchild_node2_err)
+
+	// create a new root to move the child into
+	new_root_node, new_root_node_err := gonedb.Nodes.Create(db, 0, GetTestStringId(db, "newbar"), GetTestStringId(db, "newroot"))
+	AssertNoError(new_root_node_err)
+
+	// move the child into the new root
+	move_err := gonedb.Nodes.Move(db, child_node.Id, new_root_node.Id)
+	AssertNoError(move_err)
+
+	// get the copy
+	got_child_node, got_move_err := gonedb.Nodes.Get(db, child_node.Id)
+	AssertNoError(got_move_err)
+	AssertEqual(child_node.Id, got_child_node.Id)
+	AssertEqual(new_root_node.Id, got_child_node.ParentId) // null
+	AssertEqual(child_node.NameStringId, got_child_node.NameStringId)
+	AssertEqual(child_node.TypeStringId, got_child_node.TypeStringId)
+
+	// get the new grandchildren
+	move_grandchildren, move_grandchildren_err := gonedb.Nodes.GetChildren(db, got_child_node.Id)
+	AssertNoError(move_grandchildren_err)
+	AssertEqual(2, len(move_grandchildren))
+
+	// compare new and old grandchildren
+	AssertEqual(got_child_node.Id, move_grandchildren[0].ParentId)
+	AssertEqual(grandchild_node1.NameStringId, move_grandchildren[0].NameStringId)
+	AssertEqual(grandchild_node1.TypeStringId, move_grandchildren[0].TypeStringId)
+
+	AssertEqual(got_child_node.Id, move_grandchildren[1].ParentId)
+	AssertEqual(grandchild_node2.NameStringId, move_grandchildren[1].NameStringId)
+	AssertEqual(grandchild_node2.TypeStringId, move_grandchildren[1].TypeStringId)
+}
+
+func TestNodeRename(t *testing.T) {
+	db := GetTestDb("TestNodeRename.db")
+	defer db.Close()
+
+	// set up root, kid, and grandkids
+	root_node, root_node_err := gonedb.Nodes.Create(db, 0, GetTestStringId(db, "foobar"), GetTestStringId(db, "root"))
+	AssertNoError(root_node_err)
+
+	child_node, child_node_err := gonedb.Nodes.Create(db, root_node.Id, GetTestStringId(db, "bletmonkey"), GetTestStringId(db, "child"))
+	AssertNoError(child_node_err)
+
+	// rename the child in place
+	ren_err := gonedb.Nodes.Rename(db, child_node.Id, GetTestStringId(db, "something else"))
+	AssertNoError(ren_err)
+
+	// get the renamed
+	got_child_node, got_move_err := gonedb.Nodes.Get(db, child_node.Id)
+	AssertNoError(got_move_err)
+	AssertEqual(child_node.Id, got_child_node.Id)
+	AssertEqual(child_node.ParentId, got_child_node.ParentId) // null
+	AssertEqual(GetTestStringId(db, "something else"), got_child_node.NameStringId)
+	AssertEqual(child_node.TypeStringId, got_child_node.TypeStringId)
+}
+
+func TestNodeRemove(t *testing.T) {
+	db := GetTestDb("TestNodeRename.db")
+	defer db.Close()
+
+	// set up root, kid, and grandkids
+	root_node, root_node_err := gonedb.Nodes.Create(db, 0, GetTestStringId(db, "foobar"), GetTestStringId(db, "root"))
+	AssertNoError(root_node_err)
+
+	child_node, child_node_err := gonedb.Nodes.Create(db, root_node.Id, GetTestStringId(db, "bletmonkey"), GetTestStringId(db, "child"))
+	AssertNoError(child_node_err)
+
+	grandchild_node1, grandchild_node1_err := gonedb.Nodes.Create(db, child_node.Id, GetTestStringId(db, "funkadelic"), GetTestStringId(db, "grandkid"))
+	AssertNoError(grandchild_node1_err)
+
+	grandchild_node2, grandchild_node2_err := gonedb.Nodes.Create(db, child_node.Id, GetTestStringId(db, "superfly"), GetTestStringId(db, "grandkid"))
+	AssertNoError(grandchild_node2_err)
+
+	move_grandchildren, move_grandchildren_err := gonedb.Nodes.GetChildren(db, child_node.Id)
+	AssertNoError(move_grandchildren_err)
+	AssertEqual(2, len(move_grandchildren))
+
+	// rename the child in place
+	rem_err := gonedb.Nodes.Remove(db, child_node.Id)
+	AssertNoError(rem_err)
+
+	// get the renamed
+	_, get_rem_err := gonedb.Nodes.Get(db, child_node.Id)
+	AssertError(get_rem_err)
+
+	// get the grandchildren
+	grandkids, rem_grandchildren_err := gonedb.Nodes.GetChildren(db, child_node.Id)
+	AssertNoError(rem_grandchildren_err)
+	AssertEqual(0, len(grandkids))
+
+	_, grandchild_node1_err_after := gonedb.Nodes.Get(db, grandchild_node1.Id)
+	AssertError(grandchild_node1_err_after)
+
+	_, grandchild_node2_err_after := gonedb.Nodes.Get(db, grandchild_node2.Id)
+	AssertError(grandchild_node2_err_after)
+}
+
+func TestNodePayload(t *testing.T) {
+	db := GetTestDb("TestNodePayload.db")
+	defer db.Close()
+
+	// set up root, kid, and grandkids
+	root_node, root_node_err := gonedb.Nodes.Create(db, 0, GetTestStringId(db, "foobar"), GetTestStringId(db, "root"))
+	AssertNoError(root_node_err)
+
+	payload, err := gonedb.Nodes.GetPayload(db, root_node.Id)
+	AssertNoError(err)
+	AssertEqual("", payload)
+
+	AssertNoError(gonedb.Nodes.SetPayload(db, root_node.Id, "foobar"))
+
+	payload, err = gonedb.Nodes.GetPayload(db, root_node.Id)
+	AssertNoError(err)
+	AssertEqual("foobar", payload)
+
+	AssertNoError(gonedb.Nodes.SetPayload(db, root_node.Id, "blet monkey"))
+
+	payload, err = gonedb.Nodes.GetPayload(db, root_node.Id)
+	AssertNoError(err)
+	AssertEqual("blet monkey", payload)
+
+	AssertNoError(gonedb.Nodes.Remove(db, root_node.Id))
+
+	AssertError(gonedb.Nodes.SetPayload(db, root_node.Id, "post remove"))
+}
