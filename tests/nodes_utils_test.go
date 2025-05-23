@@ -1,7 +1,7 @@
 package test
 
 import (
-	"slices"
+	"fmt"
 	"testing"
 
 	gonedb "github.com/michaelsballoni/gonedb/pkg"
@@ -9,9 +9,7 @@ import (
 
 func TestIdsToSqlIn(t *testing.T) {
 	_, e := gonedb.NodeUtils.IdsToSqlIn([]int64{})
-	if e == nil {
-		t.Error("IdsToSqlIn(Empty call not errored)")
-	}
+	AssertTrue(e != nil)
 
 	testCases := []struct {
 		name     string
@@ -24,24 +22,15 @@ func TestIdsToSqlIn(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-
-			s, e := gonedb.NodeUtils.IdsToSqlIn(tc.input)
-			if e != nil {
-				t.Errorf("Call errored")
-			}
-			if s != tc.expected {
-				t.Errorf("Called failed: is %s - expected %s", s, tc.expected)
-			}
-		})
+		s, e := gonedb.NodeUtils.IdsToSqlIn(tc.input)
+		AssertNoError(e)
+		AssertEqual(tc.expected, s)
 	}
 }
 
 func TestStringToIds(t *testing.T) {
 	_, e := gonedb.NodeUtils.StringToIds("0,1,2,foo,bar")
-	if e == nil {
-		t.Error("StringToIds(Bad data not errored)")
-	}
+	AssertTrue(e != nil)
 
 	testCases := []struct {
 		name     string
@@ -54,15 +43,9 @@ func TestStringToIds(t *testing.T) {
 		{"Three IDs", "0/1/2/", []int64{0, 1, 2}},
 	}
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			v, e := gonedb.NodeUtils.StringToIds(tc.input)
-			if e != nil {
-				t.Errorf("Call errored: %v", e)
-			}
-			if !slices.Equal(v, tc.expected) {
-				t.Errorf("Called failed: is %v - expected %v", v, tc.expected)
-			}
-		})
+		s, e := gonedb.NodeUtils.StringToIds(tc.input)
+		AssertNoError(e)
+		AssertEqual(fmt.Sprintf("%v", tc.expected), fmt.Sprintf("%v", s))
 	}
 }
 
@@ -79,11 +62,7 @@ func TestIdsToParentsStr(t *testing.T) {
 		{"Three IDs", []int64{0, 1, 2}, "1/2/"},
 	}
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			output := gonedb.NodeUtils.IdsToParentsStr(tc.input)
-			if output != tc.expected {
-				t.Errorf("Called failed: is %v - expected %v", output, tc.expected)
-			}
-		})
+		output := gonedb.NodeUtils.IdsToParentsStr(tc.input)
+		AssertEqual(tc.expected, output)
 	}
 }

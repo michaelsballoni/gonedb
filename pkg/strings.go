@@ -30,13 +30,18 @@ func (s *nlstrings) GetId(db *sql.DB, str string) (int64, error) {
 		return string_id, nil
 	}
 
-	row = db.QueryRow("INSERT INTO strings (val) VALUES (?) on conflict(val) DO UPDATE SET val = val RETURNING id", str)
+	_, exec_err := db.Exec("INSERT INTO strings (val) VALUES (?) ON CONFLICT(val) DO NOTHING", str)
+	if exec_err != nil {
+		return -1, exec_err
+	}
+
+	row = db.QueryRow("SELECT id FROM strings WHERE val = ?", str)
 	err = row.Scan(&string_id)
 	if err == nil {
 		put_id_in_cache(str, string_id)
 		return string_id, nil
 	} else {
-		return -1, err
+		return -1, exec_err
 	}
 }
 
@@ -74,17 +79,16 @@ func (s *nlstrings) GetVals(db *sql.DB, ids []int64) (map[int64]string, error) {
 		var id int64
 		var val string
 		var found_vals = map[int64]string{}
-
 		rows, err := db.Query("SELECT id, val FROM strings WHERE id IN (" + ids_str + ")")
 		if err != nil {
 			return map[int64]string{}, err
 		}
-		defer rows.Close()
 		for rows.Next() {
 			rows.Scan(&id, &val)
 			output[id] = val
 			found_vals[id] = val
 		}
+		rows.Close()
 
 		if len(found_vals) > 0 {
 			put_vals_in_cache(&found_vals)
@@ -103,16 +107,16 @@ func (s *nlstrings) GetVals(db *sql.DB, ids []int64) (map[int64]string, error) {
 
 // Flush the string -> ID cache
 func (s *nlstrings) FlushValToIdCache() {
-	g_toIdCacheLock.Lock()
-	clear(g_toIdCache)
-	g_toIdCacheLock.Unlock()
+	g_strToIdCacheLock.Lock()
+	clear(g_strToIdCache)
+	g_strToIdCacheLock.Unlock()
 }
 
 // Flush the ID -> string cache
 func (s *nlstrings) FlushFromValToIdCache() {
-	g_fromIdCacheLock.Lock()
-	clear(g_fromIdCache)
-	g_fromIdCacheLock.Unlock()
+	g_fromIdToStrCacheLock.Lock()
+	clear(g_fromIdToStrCache)
+	g_fromIdToStrCacheLock.Unlock()
 }
 
 // Flush all string-related caches
@@ -121,16 +125,13 @@ func (s *nlstrings) FlushCaches() {
 	s.FlushFromValToIdCache()
 }
 
-var g_toIdCacheLock sync.RWMutex
-var g_toIdCache = make(map[string]int64)
-
-var g_fromIdCacheLock sync.RWMutex
-var g_fromIdCache = make(map[int64]string)
+var g_strToIdCacheLock sync.RWMutex
+var g_strToIdCache = make(map[string]int64)
 
 func get_id_from_cache(str string) int64 {
-	g_toIdCacheLock.RLock()
-	defer g_toIdCacheLock.RUnlock()
-	string_id, ok := g_toIdCache[str]
+	g_strToIdCacheLock.RLock()
+	string_id, ok := g_strToIdCache[str]
+	g_strToIdCacheLock.RUnlock()
 	if ok {
 		return string_id
 	} else {
@@ -139,43 +140,17 @@ func get_id_from_cache(str string) int64 {
 }
 
 func put_id_in_cache(str string, id int64) {
-	g_toIdCacheLock.Lock()
-	defer g_toIdCacheLock.Unlock()
-	g_toIdCache[str] = id
-}
-
-func get_val_from_cache(id int64) (string, bool) {
-	g_fromIdCacheLock.RLock()
-	defer g_fromIdCacheLock.RUnlock()
-	str, ok := g_fromIdCache[id]
-	if ok {
-		return str, true
-	} else {
-		return "", false
-	}
-}
-
-func put_val_in_cache(id int64, str string) {
-	g_fromIdCacheLock.Lock()
-	defer g_fromIdCacheLock.Unlock()
-	g_fromIdCache[id] = str
-}
-
-func put_vals_in_cache(vals *map[int64]string) {
-	g_fromIdCacheLock.Lock()
-	defer g_fromIdCacheLock.Unlock()
-	for id, str := range *vals {
-		g_fromIdCache[id] = str
-	}
+	g_strToIdCacheLock.Lock()
+	g_strToIdCache[str] = id
+	g_strToIdCacheLock.Unlock()
 }
 
 func get_ids_to_vals_cache(ids []int64, output map[int64]string) string {
-	g_fromIdCacheLock.RLock()
-	defer g_fromIdCacheLock.RUnlock()
-
+	g_fromIdToStrCacheLock.RLock()
+	defer g_fromIdToStrCacheLock.RUnlock()
 	var ids_output strings.Builder
 	for _, id := range ids {
-		str, ok := g_fromIdCache[id]
+		str, ok := g_fromIdToStrCache[id]
 		if ok {
 			output[id] = str
 		} else {
@@ -186,4 +161,32 @@ func get_ids_to_vals_cache(ids []int64, output map[int64]string) string {
 		}
 	}
 	return ids_output.String()
+}
+
+var g_fromIdToStrCacheLock sync.RWMutex
+var g_fromIdToStrCache = make(map[int64]string)
+
+func get_val_from_cache(id int64) (string, bool) {
+	g_fromIdToStrCacheLock.RLock()
+	str, ok := g_fromIdToStrCache[id]
+	g_fromIdToStrCacheLock.RUnlock()
+	if ok {
+		return str, true
+	} else {
+		return "", false
+	}
+}
+
+func put_val_in_cache(id int64, str string) {
+	g_fromIdToStrCacheLock.Lock()
+	g_fromIdToStrCache[id] = str
+	g_fromIdToStrCacheLock.Unlock()
+}
+
+func put_vals_in_cache(vals *map[int64]string) {
+	g_fromIdToStrCacheLock.Lock()
+	defer g_fromIdToStrCacheLock.Unlock()
+	for id, str := range *vals {
+		g_fromIdToStrCache[id] = str
+	}
 }

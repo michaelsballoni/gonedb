@@ -22,6 +22,7 @@ func main() {
 	}
 
 	op := os.Args[1]
+
 	db_file := os.Args[2]
 	fmt.Println("op:", op, "db_file:", db_file, "file_exists:", file_exists(db_file))
 

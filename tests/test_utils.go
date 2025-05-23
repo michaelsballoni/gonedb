@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-
 	gonedb "github.com/michaelsballoni/gonedb/pkg"
 )
 
@@ -28,40 +26,36 @@ func GetTestDb(name string) *sql.DB {
 	return db
 }
 
-func AssertEqual[T comparable](t *testing.T, expected T, got T) {
+func GetTestStringId(db *sql.DB, val string) int64 {
+	id, err := gonedb.Strings.GetId(db, val)
+	AssertNoError(err)
+	return id
+}
+
+func AssertEqual[T comparable](expected T, got T) {
 	if got != expected {
 		debug.PrintStack()
-		t.Errorf("AssertEqual: expected %v - got %v", expected, got)
-		t.Fatal()
+		panic(fmt.Sprintf("AssertEqual: expected %v - got %v", expected, got))
 	}
 }
 
-func AssertTrue(t *testing.T, check bool) {
+func AssertTrue(check bool) {
 	if !check {
 		debug.PrintStack()
-		t.Errorf("AssertTrue fails")
-		t.Fatal()
+		panic("AssertTrue failed!")
 	}
 }
 
-func AssertError(t *testing.T, err error) {
+func AssertError(err error) {
 	if err == nil {
 		debug.PrintStack()
-		t.Errorf("AssertError: %v", err)
-		t.Fatal()
+		panic("AssertError failed!")
 	}
 }
 
-func AssertNoError(t *testing.T, err error) {
+func AssertNoError(err error) {
 	if err != nil {
 		debug.PrintStack()
-		t.Errorf("AssertNoError: %v", err)
-		t.Fatal()
+		panic(fmt.Sprintf("AssertNoError failed: %v", err))
 	}
-}
-
-func GetStringId(t *testing.T, db *sql.DB, val string) int64 {
-	id, err := gonedb.Strings.GetId(db, val)
-	AssertNoError(t, err)
-	return id
 }

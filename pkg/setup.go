@@ -1,8 +1,6 @@
 package gonedb
 
-import (
-	"database/sql"
-)
+import "database/sql"
 
 func Setup(db *sql.DB) {
 	// strings

@@ -58,11 +58,11 @@ func (n *nodes) Copy(db *sql.DB, nodeId int64, newParentNodeId int64) (int64, er
 			return 0, nil
 		}
 
-		var cur_id int64
 		rows, rows_err := db.Query("SELECT id FROM nodes WHERE parents LIKE ?", like_str)
 		if rows_err != nil {
 			return 0, rows_err
 		}
+		var cur_id int64
 		for rows.Next() {
 			scan_err := rows.Scan(&cur_id)
 			if scan_err != nil {
@@ -74,37 +74,40 @@ func (n *nodes) Copy(db *sql.DB, nodeId int64, newParentNodeId int64) (int64, er
 		}
 	}
 
-	seen_node_ids := make(map[int64]bool)
+	// we track all nodes we've seen to prevent
 	src_node, src_err := n.Get(db, nodeId)
 	if src_err != nil {
 		return -1, src_err
 	}
-	parent_node, parent_err := n.Get(db, newParentNodeId)
-	if parent_err != nil {
-		return -1, parent_err
+
+	new_parent_node, new_parent_err := n.Get(db, newParentNodeId)
+	if new_parent_err != nil {
+		return -1, new_parent_err
 	}
-	new_id, copy_err := doCopy(db, src_node, parent_node, seen_node_ids)
-	return new_id, copy_err
+
+	seen_node_ids := make(map[int64]bool)
+	new_node_id, copy_err := doCopy(db, src_node, new_parent_node, seen_node_ids)
+	return new_node_id, copy_err
 }
 
 // Recursive Copy workhorse routine
-func doCopy(db *sql.DB, srcNode Node, destNode Node, seenNodeIds map[int64]bool) (int64, error) {
-	new_node, new_err := Nodes.Create(db, destNode.Id, srcNode.NameStringId, srcNode.TypeStringId)
+func doCopy(db *sql.DB, srcNode Node, newParentNode Node, seenNodeIds map[int64]bool) (int64, error) {
+	new_node, new_err := Nodes.Create(db, newParentNode.Id, srcNode.NameStringId, srcNode.TypeStringId)
 	if new_err != nil {
 		return -1, new_err
 	}
 
-	cur_nodes, cur_err := Nodes.GetChildren(db, srcNode.Id)
+	child_nodes, cur_err := Nodes.GetChildren(db, srcNode.Id)
 	if cur_err != nil {
 		return -1, cur_err
 	}
-	for _, cur_node := range cur_nodes {
-		if seenNodeIds[cur_node.Id] {
+	for _, child_node := range child_nodes {
+		if seenNodeIds[child_node.Id] {
 			return -1, fmt.Errorf("Cannot copy a node into its children")
 		} else {
-			seenNodeIds[cur_node.Id] = true
+			seenNodeIds[child_node.Id] = true
 		}
-		_, copy_err := doCopy(db, cur_node, new_node, seenNodeIds)
+		_, copy_err := doCopy(db, child_node, new_node, seenNodeIds)
 		if copy_err != nil {
 			return -1, copy_err
 		}
@@ -159,7 +162,7 @@ func (n *nodes) Move(db *sql.DB, nodeId int64, newParentNodeId int64) error {
 			return fmt.Errorf("Node not moved")
 		}
 	}
-	NodeCache.InvalidateCache1(nodeId)
+	NodeCache.Invalidate1(nodeId)
 
 	// update the parents of all children nodes
 	for _, child_id := range child_node_ids {
@@ -177,7 +180,7 @@ func (n *nodes) Move(db *sql.DB, nodeId int64, newParentNodeId int64) error {
 		if result_affected != 1 {
 			return fmt.Errorf("Node not moved")
 		}
-		NodeCache.InvalidateCache1(child_id)
+		NodeCache.Invalidate1(child_id)
 	}
 
 	return nil
@@ -210,7 +213,7 @@ func (n *nodes) Remove(db *sql.DB, nodeId int64) error {
 		if del_count != int64(len(child_node_ids)) {
 			return fmt.Errorf("Not all child nodes removed")
 		}
-		NodeCache.InvalidateCacheN(child_node_ids)
+		NodeCache.InvalidateN(child_node_ids)
 	}
 
 	// delete the node
@@ -224,7 +227,7 @@ func (n *nodes) Remove(db *sql.DB, nodeId int64) error {
 			return fmt.Errorf("Node not removed")
 		}
 	}
-	NodeCache.InvalidateCache1(nodeId)
+	NodeCache.Invalidate1(nodeId)
 	return nil
 }
 
@@ -256,7 +259,7 @@ func (n *nodes) Rename(db *sql.DB, nodeId int64, newNameStringId int64) error {
 		}
 	}
 
-	NodeCache.InvalidateCache1(nodeId)
+	NodeCache.Invalidate1(nodeId)
 	return nil
 }
 
@@ -331,7 +334,7 @@ func (n *nodes) GetParentPath(db *sql.DB, nodeId int64) ([]Node, error) {
 
 // Get a node given an ID
 func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
-	found_node, found := NodeCache.GetFromCache(nodeId)
+	found_node, found := NodeCache.Get(nodeId)
 	if found {
 		return found_node, nil
 	}
@@ -343,7 +346,7 @@ func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
 	if err != nil {
 		return Node{}, err
 	} else {
-		NodeCache.PutIntoCache(output)
+		NodeCache.Put(output)
 		return output, nil
 	}
 }
@@ -436,8 +439,3 @@ func (n *nodes) GetChildNodesLikeExpression(db *sql.DB, nodeId int64) (string, e
 	original_node_parents = original_node_parents + strconv.FormatInt(nodeId, 10) + "/%"
 	return original_node_parents, nil
 }
-
-/*
-FORNOW - Code a slice of node names -> slice of nodes function as needed
-std::optional<std::vector<node>> get_path_nodes(db& db, const std::vector<std::wstring>>& path);
-*/
