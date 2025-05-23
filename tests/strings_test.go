@@ -2,6 +2,7 @@ package test
 
 import (
 	"database/sql"
+	"fmt"
 	"testing"
 
 	gonedb "github.com/michaelsballoni/gonedb/pkg"
@@ -71,13 +72,15 @@ func TestStringsMixup(t *testing.T) {
 		"grandkid",
 		"superfly",
 	}
-	seen_ids := map[int64]bool{}
+	seen_ids := map[int64]bool{} // string ID -> dummy bool
 	for _, str := range strs {
+		fmt.Printf("GetId: str: %s\n", str)
 		new_id, new_err := gonedb.Strings.GetId(db, str)
 		AssertNoError(new_err)
-		found_str, found_ok := seen_ids[new_id]
+		_, found_ok := seen_ids[new_id]
+		fmt.Printf("seen_ids: new_id: %d - ok: %t\n", new_id, found_ok)
 		AssertTrue(!found_ok)
-		seen_ids[new_id] = found_str
+		seen_ids[new_id] = true
 	}
 
 	for _, str := range strs {

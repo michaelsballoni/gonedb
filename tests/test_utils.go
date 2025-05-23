@@ -11,6 +11,7 @@ import (
 )
 
 func GetTestDb(name string) *sql.DB {
+	fmt.Printf("GetTestDb: %s\n", name)
 	tmp_file, tmp_err := os.CreateTemp(os.TempDir(), name)
 	if tmp_err != nil {
 		panic(fmt.Sprintf("GetTestDb fails CreateTemp: %v", tmp_err))
@@ -23,6 +24,7 @@ func GetTestDb(name string) *sql.DB {
 		panic(fmt.Sprintf("GetTestDb fails Open: %v", err))
 	}
 	gonedb.Setup(db)
+	gonedb.Strings.FlushCaches()
 	return db
 }
 
