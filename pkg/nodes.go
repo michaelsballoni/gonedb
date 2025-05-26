@@ -80,19 +80,14 @@ func (n *nodes) Copy(db *sql.DB, nodeId int64, newParentNodeId int64) (int64, er
 		return -1, src_err
 	}
 
-	new_parent_node, new_parent_err := n.Get(db, newParentNodeId)
-	if new_parent_err != nil {
-		return -1, new_parent_err
-	}
-
 	seen_node_ids := make(map[int64]bool)
-	new_node_id, copy_err := doCopy(db, src_node, new_parent_node, seen_node_ids)
+	new_node_id, copy_err := doCopy(db, src_node, newParentNodeId, seen_node_ids)
 	return new_node_id, copy_err
 }
 
 // Recursive Copy workhorse routine
-func doCopy(db *sql.DB, srcNode Node, newParentNode Node, seenNodeIds map[int64]bool) (int64, error) {
-	new_node, new_err := Nodes.Create(db, newParentNode.Id, srcNode.NameStringId, srcNode.TypeStringId)
+func doCopy(db *sql.DB, srcNode Node, newParentNodeId int64, seenNodeIds map[int64]bool) (int64, error) {
+	new_node, new_err := Nodes.Create(db, newParentNodeId, srcNode.NameStringId, srcNode.TypeStringId)
 	if new_err != nil {
 		return -1, new_err
 	}
@@ -107,7 +102,7 @@ func doCopy(db *sql.DB, srcNode Node, newParentNode Node, seenNodeIds map[int64]
 		} else {
 			seenNodeIds[child_node.Id] = true
 		}
-		_, copy_err := doCopy(db, child_node, new_node, seenNodeIds)
+		_, copy_err := doCopy(db, child_node, new_node.Id, seenNodeIds)
 		if copy_err != nil {
 			return -1, copy_err
 		}
