@@ -3,7 +3,6 @@ package gonedb
 import (
 	"database/sql"
 	"slices"
-	"strings"
 )
 
 type node_paths struct{}
@@ -37,11 +36,11 @@ func (np *node_paths) GetNodes(db *sql.DB, node Node) ([]Node, error) {
 	return output, nil
 }
 
-// Given a node return a /-delimited path of name string IDs up to and including the node
-func (np *node_paths) GetNodesStr(db *sql.DB, node Node) (string, error) {
+// Given a node return a list of path names up to and including the node
+func (np *node_paths) GetStrs(db *sql.DB, node Node) ([]string, error) {
 	path_nodes, nodes_err := np.GetNodes(db, node)
 	if nodes_err != nil {
-		return "", nodes_err
+		return []string{}, nodes_err
 	}
 
 	path_str_ids := make([]int64, 0, len(path_nodes))
@@ -51,44 +50,24 @@ func (np *node_paths) GetNodesStr(db *sql.DB, node Node) (string, error) {
 
 	strs_map, strs_err := Strings.GetVals(db, path_str_ids)
 	if strs_err != nil {
-		return "", strs_err
+		return []string{}, strs_err
 	}
 
-	var builder strings.Builder
+	output := make([]string, 0, len(path_str_ids))
 	for _, path_str_id := range path_str_ids {
-		builder.WriteRune('/')
-		builder.WriteString(strs_map[path_str_id])
+		output = append(output, strs_map[path_str_id])
 	}
-	return builder.String(), nil
+	return output, nil
 }
 
-// Given a /-separated path of name string IDs, return a list of nodes in the path
-func (np *node_paths) GetStrNodes(db *sql.DB, path string) (*[]Node, error) {
-	splits := []string{}
-	var builder strings.Builder
-	for _, c := range path {
-		if c == '/' {
-			if builder.Len() > 0 {
-				splits = append(splits, builder.String())
-				builder.Reset()
-			}
-		} else {
-			builder.WriteRune(c)
-		}
-	}
-	if builder.Len() > 0 {
-		splits = append(splits, builder.String())
-	}
-	if len(splits) == 0 {
-		return nil, nil
-	}
-
-	output := make([]Node, 0, len(splits))
+// Given a list of name strings, return a list of nodes in the path, or nil of the path does not resolve to a node
+func (np *node_paths) GetStrNodes(db *sql.DB, pathParts []string) (*[]Node, error) {
+	output := []Node{}
 	var cur_node_id int64
-	for _, part := range splits {
-		cur_name_string_id, err := Strings.GetId(db, part)
-		if err != nil {
-			return nil, nil
+	for _, part := range pathParts {
+		cur_name_string_id, str_err := Strings.GetId(db, part)
+		if str_err != nil {
+			return nil, str_err
 		}
 		node_in_parent, node_err := Nodes.GetNodeInParent(db, cur_node_id, cur_name_string_id)
 		if node_err != nil {
@@ -97,6 +76,5 @@ func (np *node_paths) GetStrNodes(db *sql.DB, path string) (*[]Node, error) {
 		output = append(output, node_in_parent)
 		cur_node_id = node_in_parent.Id
 	}
-
 	return &output, nil
 }

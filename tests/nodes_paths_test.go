@@ -1,6 +1,7 @@
 package test
 
 import (
+	"strings"
 	"testing"
 
 	gonedb "github.com/michaelsballoni/gonedb/pkg"
@@ -26,8 +27,27 @@ func TestNodePaths(t *testing.T) {
 	gc1, err1 := gonedb.NodePaths.GetNodes(db, grandchild_node1)
 	AssertNoError(err1)
 	AssertEqual(3, len(gc1))
+	AssertEqual(root_node, gc1[0])
+	AssertEqual(child_node, gc1[1])
+	AssertEqual(grandchild_node1, gc1[2])
 
 	gc2, err2 := gonedb.NodePaths.GetNodes(db, grandchild_node2)
 	AssertNoError(err2)
 	AssertEqual(3, len(gc2))
+	AssertEqual(root_node, gc2[0])
+	AssertEqual(child_node, gc2[1])
+	AssertEqual(grandchild_node2, gc2[2])
+
+	str1, strErr1 := gonedb.NodePaths.GetStrs(db, grandchild_node1)
+	AssertNoError(strErr1)
+	AssertEqual("foobar/bletmonkey/funkadelic", strings.Join(str1, "/"))
+
+	arr1star, arrErr := gonedb.NodePaths.GetStrNodes(db, strings.Split("foobar/bletmonkey/funkadelic", "/"))
+	AssertNoError(arrErr)
+	AssertTrue(arr1star != nil)
+	arr1 := *arr1star
+	AssertEqual(3, len(arr1))
+	AssertEqual(root_node, arr1[0])
+	AssertEqual(child_node, arr1[1])
+	AssertEqual(grandchild_node1, arr1[2])
 }
