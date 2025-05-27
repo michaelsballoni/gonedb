@@ -1,7 +1,6 @@
 # Finish Port from C++
 ## See what of the C++ has not been ported and should be ported
 ### Nodes
-IP: static std::vector<node> get_path(db& db, const node& cur);
 IP: static std::wstring get_path_str(db& db, const node& cur);
 IP: static std::optional<std::vector<node>> get_path_nodes(db& db, const std::wstring& path);
 
