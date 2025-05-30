@@ -42,6 +42,7 @@ func Setup(db *sql.DB) {
 	db.Exec("CREATE UNIQUE INDEX link_from ON links (from_node_id, to_node_id, type_string_id)")
 	db.Exec("CREATE UNIQUE INDEX link_to ON links (to_node_id, from_node_id, type_string_id)")
 	db.Exec("CREATE INDEX link_payloads ON links (payload, id)")
+	db.Exec("INSERT INTO links (id, from_node_id, to_node_id, type_string_id) VALUES (0, 0, 0, 0)")
 
 	// linkprops
 	db.Exec("CREATE TABLE linkprops (linkid INTEGER, namestrid INTEGER, valstrid INTEGER)")

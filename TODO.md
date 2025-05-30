@@ -1,15 +1,10 @@
 # Finish Port from C++
 ## See what of the C++ has not been ported and should be ported
-### Nodes
-IP: static std::wstring get_path_str(db& db, const node& cur);
-IP: static std::optional<std::vector<node>> get_path_nodes(db& db, const std::wstring& path);
-
 ### Links
-static link create(db& db, int64_t fromNodeId, int64_t toNodeId, int64_t typeStringId = 0, const std::optional<std::wstring>& payload = std::nullopt);
 static bool remove(db& db, int64_t fromNodeId, int64_t toNodeId, int64_t typeStringId = 0);
-
 static link get(db& db, int64_t linkId);
 static std::wstring get_payload(db& db, int64_t linkId);
+ - Test these
 
 static std::vector<link> get_out_links(db& db, int64_t fromNodeId);
 static std::vector<link> get_in_links(db& db, int64_t toNodeId);
