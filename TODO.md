@@ -1,14 +1,5 @@
 # Finish Port from C++
 ## See what of the C++ has not been ported and should be ported
-### Links
-static bool remove(db& db, int64_t fromNodeId, int64_t toNodeId, int64_t typeStringId = 0);
-static link get(db& db, int64_t linkId);
-static std::wstring get_payload(db& db, int64_t linkId);
- - Test these
-
-static std::vector<link> get_out_links(db& db, int64_t fromNodeId);
-static std::vector<link> get_in_links(db& db, int64_t toNodeId);
-
 ### Properties
 static void set(db& db, int64_t itemTypeStringId, int64_t itemId, int64_t nameStringId, int64_t valueStringId); // use < 0 to delete
 static std::unordered_map<int64_t, int64_t> get(db& db, int64_t itemTypeStringId, int64_t itemId);

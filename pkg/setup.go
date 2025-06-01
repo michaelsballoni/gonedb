@@ -24,11 +24,6 @@ func Setup(db *sql.DB) {
 	db.Exec("CREATE INDEX node_payloads ON nodes (payload, id)")
 	db.Exec("INSERT INTO nodes (id, parent_id, type_string_id, name_string_id) VALUES (0, 0, 0, 0)")
 
-	// nodeprops
-	db.Exec("CREATE TABLE nodeprops (nodeid INTEGER, namestrid INTEGER, valstrid INTEGER)")
-	db.Exec("CREATE UNIQUE INDEX nodeitem_props ON props (nodeid, namestrid)")
-	db.Exec("CREATE INDEX nodeprop_vals ON props (valstrid, namestrid, nodeid)")
-
 	// links
 	db.Exec(`
 		CREATE TABLE links
@@ -44,8 +39,9 @@ func Setup(db *sql.DB) {
 	db.Exec("CREATE INDEX link_payloads ON links (payload, id)")
 	db.Exec("INSERT INTO links (id, from_node_id, to_node_id, type_string_id) VALUES (0, 0, 0, 0)")
 
-	// linkprops
-	db.Exec("CREATE TABLE linkprops (linkid INTEGER, namestrid INTEGER, valstrid INTEGER)")
-	db.Exec("CREATE UNIQUE INDEX linkitem_props ON props (linkid, namestrid)")
-	db.Exec("CREATE INDEX linkprop_vals ON props (valstrid, namestrid, linkid)")
+	// props
+	db.Exec("CREATE TABLE props (id INTEGER PRIMARY KEY, itemtypeid INTEGER, itemid INTEGER, namestrid INTEGER, valstrid INTEGER)")
+	db.Exec("CREATE UNIQUE INDEX item_props ON props (itemtypeid, itemid, namestrid)")
+	db.Exec("CREATE INDEX prop_vals ON props (valstrid, namestrid, itemtypeid, itemid)")
+	db.Exec("INSERT INTO props (id, itemtypeid, itemid, namestrid, valstrid) VALUES (0, 0, 0, 0, 0)")
 }
