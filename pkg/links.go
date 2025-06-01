@@ -89,32 +89,36 @@ func (l *links) SetPayload(db *sql.DB, linkId int64, payload string) error {
 	}
 }
 
-/* FORNOW
-std::vector<link> links::get_out_links(db& db, int64_t fromNodeId)
-{
-	std::vector<link> output;
-	auto reader =
-		db.execReader
-		(
-			L"SELECT id, from_node_id, to_node_id, type_string_id FROM links WHERE from_node_id = @fromNodeId",
-			{ { L"@fromNodeId", fromNodeId } }
-		);
-	while (reader->read())
-		output.emplace_back(reader->getInt64(0), reader->getInt64(1), reader->getInt64(2), reader->getInt64(3));
-	return output;
+func (l *links) GetOutLinks(db *sql.DB, nodeId int64) ([]Link, error) {
+	query, query_err := db.Query("SELECT id, from_node_id, to_node_id, type_string_id FROM links WHERE from_node_id = ?", nodeId)
+	if query_err != nil {
+		return []Link{}, query_err
+	}
+	output := []Link{}
+	var cur_link Link
+	for query.Next() {
+		scan_err := query.Scan(&cur_link.Id, &cur_link.FromNodeId, &cur_link.ToNodeId, &cur_link.TypeStringId)
+		if scan_err != nil {
+			return []Link{}, scan_err
+		}
+		output = append(output, cur_link)
+	}
+	return output, nil
 }
 
-std::vector<link> links::get_in_links(db& db, int64_t toNodeId)
-{
-	std::vector<link> output;
-	auto reader =
-		db.execReader
-		(
-			L"SELECT id, from_node_id, to_node_id, type_string_id FROM links WHERE to_node_id = @toNodeId",
-			{ { L"@toNodeId", toNodeId } }
-		);
-	while (reader->read())
-		output.emplace_back(reader->getInt64(0), reader->getInt64(1), reader->getInt64(2), reader->getInt64(3));
-	return output;
+func (l *links) GetToLinks(db *sql.DB, nodeId int64) ([]Link, error) {
+	query, query_err := db.Query("SELECT id, from_node_id, to_node_id, type_string_id FROM links WHERE to_node_id = ?", nodeId)
+	if query_err != nil {
+		return []Link{}, query_err
+	}
+	output := []Link{}
+	var cur_link Link
+	for query.Next() {
+		scan_err := query.Scan(&cur_link.Id, &cur_link.FromNodeId, &cur_link.ToNodeId, &cur_link.TypeStringId)
+		if scan_err != nil {
+			return []Link{}, scan_err
+		}
+		output = append(output, cur_link)
+	}
+	return output, nil
 }
-*/
