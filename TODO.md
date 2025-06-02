@@ -1,14 +1,10 @@
 # Finish Port from C++
-## See what of the C++ has not been ported and should be ported
-### Properties
-static void set(db& db, int64_t itemTypeStringId, int64_t itemId, int64_t nameStringId, int64_t valueStringId); // use < 0 to delete
-static std::unordered_map<int64_t, int64_t> get(db& db, int64_t itemTypeStringId, int64_t itemId);
-
-static std::map<std::wstring, std::wstring> fill(db& db, const std::unordered_map<int64_t, int64_t>& map);
-static std::wstring summarize(db& db, const std::unordered_map<int64_t, int64_t>& map);
 
 ### Search
-static std::optional<std::wstring> get_path_to_parent_like(db& db, const std::wstring& path);
+Currently builds node path stuff
+Test what we've got
+Add back Nodes machinery for looking up nodes by name string ID paths, deep or not
+    static std::optional<std::wstring> get_path_to_parent_like(db& db, const std::wstring& path);
 
 ### Command Processor
 class cmd
