@@ -132,7 +132,7 @@ func createStrVar(str string) variant {
 }
 func varToSql(v variant) string {
 	if v.IsNum {
-		return strconv.FormatInt(v.NumVal, 64)
+		return strconv.FormatInt(v.NumVal, 10)
 	} else {
 		return strings.ReplaceAll(v.StrVal, "'", "''")
 	}
@@ -272,7 +272,7 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 	}
 
 	if findParams.Query.Limit > 0 {
-		sql += "\nLIMIT " + strconv.FormatInt(findParams.Query.Limit, 64)
+		sql += "\nLIMIT " + strconv.FormatInt(findParams.Query.Limit, 10)
 	}
 
 	return sql, nil
