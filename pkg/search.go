@@ -271,7 +271,7 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 	sql += "WHERE " + where
 
 	if len(findParams.Query.OrderBy) > 0 {
-		sql += "\nAND ItemProps.itemtypstrid = @node_item_type_id AND ItemProps.namestrid = @order_by_string_id"
+		sql += "\nAND ItemProps.itemtypeid = @node_item_type_id AND ItemProps.namestrid = @order_by_string_id"
 		sql += "\nORDER BY ItemStrings.val " + get_asc_str(findParams.Query)
 	}
 

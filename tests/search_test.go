@@ -20,12 +20,12 @@ func TestSearch(t *testing.T) {
 	AssertNoError(err)
 	item_id1 := node1.Id
 
+	node_results := []gonedb.Node{}
+
 	//
 	// NODES
 	//
 	{
-		node_results := []gonedb.Node{}
-
 		{
 			var search_query gonedb.SearchQuery
 			node_results, err = gonedb.Search.FindNodes(db, &search_query)
@@ -125,6 +125,7 @@ func TestSearch(t *testing.T) {
 
 	{
 		err = gonedb.Props.Set(db, gonedb.LinkItemTypeId, item_id2, GetTestStringId(db, "link"), GetTestStringId(db, "sink"))
+		AssertNoError(err)
 
 		link_results := []gonedb.Link{}
 
@@ -146,44 +147,62 @@ func TestSearch(t *testing.T) {
 		}
 	}
 
-	/* FORNOW
 	//
 	// ORDER BY / LIMIT
 	//
 	{
-		props::set(db, node_item_type_id, item_id0, strings::get_id(db, L"some"), strings::get_id(db, L"one"));
-		props::set(db, node_item_type_id, item_id1, strings::get_id(db, L"some"), strings::get_id(db, L"two"));
+		err = gonedb.Props.Set(db, gonedb.NodeItemTypeId, item_id0, GetTestStringId(db, "some"), GetTestStringId(db, "one"))
+		AssertNoError(err)
+		err = gonedb.Props.Set(db, gonedb.NodeItemTypeId, item_id1, GetTestStringId(db, "some"), GetTestStringId(db, "two"))
+		AssertNoError(err)
 
-		auto results10 =
-			search::find_nodes
-			(
-				db,
-				search_query({ search_criteria(strings::get_id(db, L"some"), L"%", true) }, L"some", true)
-			);
-		Assert::AreEqual(size_t(2), results10.size());
-		Assert::AreEqual(item_id0, results10[0].Id);
-		Assert::AreEqual(item_id1, results10[1].Id);
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria =
+				[]gonedb.SearchCriteria{
+					{NameStringId: GetTestStringId(db, "some"), ValueString: "%", UseLike: true},
+				}
+			search_query.OrderBy = "some"
+			search_query.OrderAscensing = true
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(2, len(node_results))
+			AssertEqual(item_id0, node_results[0].Id)
+			AssertEqual(item_id1, node_results[1].Id)
+		}
 
-		auto results11 =
-			search::find_nodes
-			(
-				db,
-				search_query({ search_criteria(strings::get_id(db, L"some"), L"%", true) }, L"some", false)
-			);
-		Assert::AreEqual(size_t(2), results11.size());
-		Assert::AreEqual(item_id1, results11[0].Id);
-		Assert::AreEqual(item_id0, results11[1].Id);
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria =
+				[]gonedb.SearchCriteria{
+					{NameStringId: GetTestStringId(db, "some"), ValueString: "%", UseLike: true},
+				}
+			search_query.OrderBy = "some"
+			search_query.OrderAscensing = false
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(2, len(node_results))
+			AssertEqual(item_id1, node_results[0].Id)
+			AssertEqual(item_id0, node_results[1].Id)
+		}
 
-		auto results12 =
-			search::find_nodes
-			(
-				db,
-				search_query({ search_criteria(strings::get_id(db, L"some"), L"%", true) }, L"some", false, 1)
-			);
-		Assert::AreEqual(size_t(1), results12.size());
-		Assert::AreEqual(item_id1, results12[0].Id);
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria =
+				[]gonedb.SearchCriteria{
+					{NameStringId: GetTestStringId(db, "some"), ValueString: "%", UseLike: true},
+				}
+			search_query.OrderBy = "some"
+			search_query.OrderAscensing = false
+			search_query.Limit = 1
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id1, node_results[0].Id)
+		}
 	}
 
+	/* FORNOW
 	//
 	// SEARCH BY PAYLOAD
 	//
