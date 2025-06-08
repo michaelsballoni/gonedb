@@ -16,7 +16,7 @@ func TestSearch(t *testing.T) {
 	AssertNoError(err)
 	item_id0 := node0.Id
 
-	node1, err = gonedb.Nodes.Create(db, item_id0, GetTestStringId(db, "show"), 0)
+	node1, err = gonedb.Nodes.Create(db, item_id0, GetTestStringId(db, "show"), GetTestStringId(db, "type1"))
 	AssertNoError(err)
 	item_id1 := node1.Id
 
@@ -227,21 +227,51 @@ func TestSearch(t *testing.T) {
 		}
 	}
 
-	/* FORNOW
 	//
 	// SEARCH BY NAME
 	//
 	{
-		search_query search1({ search_criteria(strings::get_id(db, L"name"), L"slow poke") });
-		auto no_results = search::find_nodes(db, search1);
-		Assert::IsTrue(no_results.empty());
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "name"), ValueString: "slow poke"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(node_results))
+		}
 
-		search_query search2({ search_criteria(strings::get_id(db, L"name"), L"show") });
-		auto with_results = search::find_nodes(db, search2);
-		Assert::AreEqual(size_t(1), with_results.size());
-		Assert::IsTrue(with_results[0] == node1);
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "name"), ValueString: "show"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id1, node_results[0].Id)
+		}
 	}
 
+	//
+	// SEARCH BY TYPE
+	//
+	{
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "type"), ValueString: "not my type"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(node_results))
+		}
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "type"), ValueString: "type1"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id1, node_results[0].Id)
+		}
+	}
+
+	/* FORNOW
 	//
 	// SEARCH BY PATH
 	//
@@ -280,28 +310,6 @@ func TestSearch(t *testing.T) {
 		Assert::AreEqual(size_t(2), with_results2.size());
 		Assert::IsTrue(hasNode(with_results2, node2.Id));
 		Assert::IsTrue(hasNode(with_results2, node3.Id));
-	}
-
-	//
-	// SEARCH BY TYPE
-	//
-	{
-		auto node3 = nodes::create(db, node1.id, strings::get_id(db, L"leaf2"), strings::get_id(db, L"type1"));
-		auto node4 = nodes::create(db, node3.id, strings::get_id(db, L"leafier2"), strings::get_id(db, L"type2"));
-
-		search_query search2({ search_criteria(strings::get_id(db, L"type"), L"type1") });
-		auto with_results = search::find_nodes(db, search2);
-		Assert::AreEqual(size_t(1), with_results.size());
-		Assert::IsTrue(hasNode(with_results, node3.Id));
-
-		search_query search3({ search_criteria(strings::get_id(db, L"type"), L"type2") });
-		auto with_results2 = search::find_nodes(db, search3);
-		Assert::AreEqual(size_t(1), with_results2.size());
-		Assert::IsTrue(hasNode(with_results2, node4.Id));
-
-		search_query search4({ search_criteria(strings::get_id(db, L"type"), L"fred") });
-		auto with_results3 = search::find_nodes(db, search4);
-		Assert::AreEqual(size_t(0), with_results3.size());
 	}
 	*/
 }
