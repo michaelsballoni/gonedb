@@ -115,7 +115,6 @@ func TestSearch(t *testing.T) {
 		}
 	}
 
-	/* FORNOW
 	//
 	// LINKS
 	//
@@ -125,15 +124,29 @@ func TestSearch(t *testing.T) {
 	item_id2 := link1.Id
 
 	{
-		props::set(db, link_item_type_id, item_id2, strings::get_id(db, L"link"), strings::get_id(db, L"sink"));
-		auto results8 = search::find_links(db, search_query({ search_criteria(strings::get_id(db, L"link"), L"not it") }));
-		Assert::IsTrue(results8.empty());
+		err = gonedb.Props.Set(db, gonedb.LinkItemTypeId, item_id2, GetTestStringId(db, "link"), GetTestStringId(db, "sink"))
 
-		auto results9 = search::find_links(db, search_query({ search_criteria(strings::get_id(db, L"link"), L"sink") }));
-		Assert::AreEqual(size_t(1), results9.size());
-		Assert::AreEqual(item_id2, results9[0].Id);
+		link_results := []gonedb.Link{}
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "link"), ValueString: "not it"}}
+			link_results, err = gonedb.Search.FindLinks(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(link_results))
+		}
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "link"), ValueString: "sink"}}
+			link_results, err = gonedb.Search.FindLinks(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(link_results))
+			AssertEqual(item_id2, link_results[0].Id)
+		}
 	}
 
+	/* FORNOW
 	//
 	// ORDER BY / LIMIT
 	//
