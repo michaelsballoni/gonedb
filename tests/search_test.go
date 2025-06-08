@@ -202,28 +202,32 @@ func TestSearch(t *testing.T) {
 		}
 	}
 
-	/* FORNOW
 	//
 	// SEARCH BY PAYLOAD
 	//
 	{
-		nodes::set_payload(db, item_id1, L"some payload");
-		search_query search1({ search_criteria(strings::get_id(db, L"payload"), L"not that payload") });
-		auto no_payload_results = search::find_nodes(db, search1);
-		Assert::IsTrue(no_payload_results.empty());
+		err = gonedb.Nodes.SetPayload(db, item_id1, "some payload")
+		AssertNoError(err)
 
-		search_query search2({ search_criteria(strings::get_id(db, L"payload"), L"some payload") });
-		auto with_payload_results = search::find_nodes(db, search2);
-		Assert::AreEqual(size_t(1), with_payload_results.size());
-		Assert::IsTrue(!with_payload_results[0].payload.has_value());
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "payload"), ValueString: "not that payload"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(node_results))
+		}
 
-		search_query search3({ search_criteria(strings::get_id(db, L"payload"), L"some payload") });
-		search3.m_includePayload = true;
-		auto with_payload_results2 = search::find_nodes(db, search3);
-		Assert::AreEqual(size_t(1), with_payload_results2.size());
-		Assert::AreEqual(std::wstring(L"some payload"), with_payload_results2[0].payload.value());
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "payload"), ValueString: "some payload"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id1, node_results[0].Id)
+		}
 	}
 
+	/* FORNOW
 	//
 	// SEARCH BY NAME
 	//
