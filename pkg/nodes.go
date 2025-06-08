@@ -19,6 +19,25 @@ type Node struct {
 	TypeStringId int64
 }
 
+// Get a node given an ID
+func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
+	found_node, found := NodeCache.Get(nodeId)
+	if found {
+		return found_node, nil
+	}
+
+	var output Node
+	output.Id = nodeId
+	row := db.QueryRow("SELECT parent_id, name_string_id, type_string_id FROM nodes WHERE id = ?", nodeId)
+	err := row.Scan(&output.ParentId, &output.NameStringId, &output.TypeStringId)
+	if err != nil {
+		return Node{}, err
+	} else {
+		NodeCache.Put(output)
+		return output, nil
+	}
+}
+
 // Create a new node
 func (n *nodes) Create(db *sql.DB, parentNodeId int64, nameStringId int64, typeStringId int64) (Node, error) {
 	// Add parents of the parent
@@ -325,25 +344,6 @@ func (n *nodes) GetParentPath(db *sql.DB, nodeId int64) ([]Node, error) {
 		}
 	}
 	return output, nil
-}
-
-// Get a node given an ID
-func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
-	found_node, found := NodeCache.Get(nodeId)
-	if found {
-		return found_node, nil
-	}
-
-	var output Node
-	output.Id = nodeId
-	row := db.QueryRow("SELECT parent_id, name_string_id, type_string_id FROM nodes WHERE id = ?", nodeId)
-	err := row.Scan(&output.ParentId, &output.NameStringId, &output.TypeStringId)
-	if err != nil {
-		return Node{}, err
-	} else {
-		NodeCache.Put(output)
-		return output, nil
-	}
 }
 
 // Get the parent of a node

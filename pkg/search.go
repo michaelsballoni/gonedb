@@ -17,12 +17,13 @@ func (s *search) FindNodes(db *sql.DB, searchQuery *SearchQuery) ([]Node, error)
 
 	var find_params_obj find_params
 	find_params_obj.Query = searchQuery
-	find_params_obj.ItemType = "node"
+	find_params_obj.ItemType = NodeItemTypeId
 	find_params_obj.ItemTable = "nodes"
 	find_params_obj.Columns = "Items.id, parent_id, name_string_id, type_string_id"
 
-	var sql_params map[string]variant
+	sql_params := map[string]variant{}
 	sql, err := get_find_sql(db, &find_params_obj, sql_params)
+	//fmt.Printf("PRE: sql: %s - err: %v\n", sql, err)
 	if err != nil {
 		return []Node{}, err
 	}
@@ -30,6 +31,7 @@ func (s *search) FindNodes(db *sql.DB, searchQuery *SearchQuery) ([]Node, error)
 	for k, v := range sql_params {
 		sql = strings.ReplaceAll(sql, k, varToSql(v))
 	}
+	//fmt.Printf("PRM: sql: %s - err: %v\n", sql, err)
 
 	output := []Node{}
 	var cur_node Node
@@ -54,11 +56,11 @@ func (s *search) FindLinks(db *sql.DB, searchQuery *SearchQuery) ([]Link, error)
 
 	var find_params_obj find_params
 	find_params_obj.Query = searchQuery
-	find_params_obj.ItemType = "link"
+	find_params_obj.ItemType = LinkItemTypeId
 	find_params_obj.ItemTable = "links"
 	find_params_obj.Columns = "Items.id, from_node_id, to_node_id, type_string_id"
 
-	var sql_params map[string]variant
+	sql_params := map[string]variant{}
 	sql, err := get_find_sql(db, &find_params_obj, sql_params)
 	if err != nil {
 		return []Link{}, err
@@ -108,7 +110,7 @@ type SearchCriteria struct {
 type find_params struct {
 	Query     *SearchQuery
 	ItemTable string
-	ItemType  string
+	ItemType  int64
 	Columns   string
 }
 
@@ -134,7 +136,7 @@ func varToSql(v variant) string {
 	if v.IsNum {
 		return strconv.FormatInt(v.NumVal, 10)
 	} else {
-		return strings.ReplaceAll(v.StrVal, "'", "''")
+		return "'" + strings.ReplaceAll(v.StrVal, "'", "''") + "'"
 	}
 }
 
@@ -167,6 +169,8 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 	if err != nil {
 		return "", err
 	}
+
+	sqlParams["@node_item_type_id"] = createNumVar(findParams.ItemType)
 
 	if len(findParams.Query.OrderBy) > 0 {
 		order_by_string_id, err = Strings.GetId(db, findParams.Query.OrderBy)
@@ -247,7 +251,7 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 		} else {
 			sqlParams["@namestrid"+param_num_str] = createNumVar(crit.NameStringId)
 
-			new_sql := "Items.id IN (SELECT itemid FROM props WHERE itemtypstrid = @node_item_type_id AND namestrid = @namestrid" + param_num_str
+			new_sql := "Items.id IN (SELECT itemid FROM props WHERE itemtypeid = @node_item_type_id AND namestrid = @namestrid" + param_num_str
 			if crit.UseLike {
 				sqlParams["@valstr"+param_num_str] = createStrVar(crit.ValueString)
 				new_sql += " AND valstrid IN (SELECT id FROM strings WHERE val LIKE @valstr" + param_num_str + ")"

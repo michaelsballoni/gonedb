@@ -1,7 +1,6 @@
 # Finish Port from C++
 
 ### Search
-Currently builds node path stuff
 Test what we've got
 Add back Nodes machinery for looking up nodes by name string ID paths, deep or not
     static std::optional<std::wstring> get_path_to_parent_like(db& db, const std::wstring& path);

@@ -1,0 +1,271 @@
+package test
+
+import (
+	"testing"
+
+	gonedb "github.com/michaelsballoni/gonedb/pkg"
+)
+
+func TestSearch(t *testing.T) {
+	db := GetTestDb("TestSearch.db")
+	defer db.Close()
+
+	var err error
+	var node0, node1 gonedb.Node
+	node0, err = gonedb.Nodes.Get(db, 0)
+	AssertNoError(err)
+	item_id0 := node0.Id
+
+	node1, err = gonedb.Nodes.Create(db, item_id0, GetTestStringId(db, "show"), 0)
+	AssertNoError(err)
+	item_id1 := node1.Id
+
+	//
+	// NODES
+	//
+	{
+		node_results := []gonedb.Node{}
+
+		{
+			var search_query gonedb.SearchQuery
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(node_results))
+		}
+
+		err = gonedb.Props.Set(db, gonedb.NodeItemTypeId, item_id0, GetTestStringId(db, "foo"), GetTestStringId(db, "bar"))
+		AssertNoError(err)
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "foo"), ValueString: "not it"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(node_results))
+		}
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "foo"), ValueString: "bar"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id0, node_results[0].Id)
+		}
+
+		err = gonedb.Props.Set(db, gonedb.NodeItemTypeId, item_id0, GetTestStringId(db, "blet"), GetTestStringId(db, "monkey"))
+		AssertNoError(err)
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria =
+				[]gonedb.SearchCriteria{
+					{NameStringId: GetTestStringId(db, "foo"), ValueString: "bar"},
+					{NameStringId: GetTestStringId(db, "foo"), ValueString: "not it"},
+				}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(node_results))
+		}
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria =
+				[]gonedb.SearchCriteria{
+					{NameStringId: GetTestStringId(db, "foo"), ValueString: "bar"},
+					{NameStringId: GetTestStringId(db, "blet"), ValueString: "monkey"},
+				}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id0, node_results[0].Id)
+		}
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria =
+				[]gonedb.SearchCriteria{
+					{NameStringId: GetTestStringId(db, "foo"), ValueString: "bar"},
+					{NameStringId: GetTestStringId(db, "blet"), ValueString: "monk%", UseLike: true},
+				}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id0, node_results[0].Id)
+		}
+
+		err = gonedb.Props.Set(db, gonedb.NodeItemTypeId, item_id1, GetTestStringId(db, "flint"), GetTestStringId(db, "stone"))
+		AssertNoError(err)
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "flint"), ValueString: "not it"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(0, len(node_results))
+		}
+
+		{
+			var search_query gonedb.SearchQuery
+			search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "flint"), ValueString: "stone"}}
+			node_results, err = gonedb.Search.FindNodes(db, &search_query)
+			AssertNoError(err)
+			AssertEqual(1, len(node_results))
+			AssertEqual(item_id1, node_results[0].Id)
+		}
+	}
+
+	/* FORNOW
+	//
+	// LINKS
+	//
+	var link1 gonedb.Link
+	link1, err = gonedb.Links.Create(db, item_id0, item_id1, 0)
+	AssertNoError(err)
+	item_id2 := link1.Id
+
+	{
+		props::set(db, link_item_type_id, item_id2, strings::get_id(db, L"link"), strings::get_id(db, L"sink"));
+		auto results8 = search::find_links(db, search_query({ search_criteria(strings::get_id(db, L"link"), L"not it") }));
+		Assert::IsTrue(results8.empty());
+
+		auto results9 = search::find_links(db, search_query({ search_criteria(strings::get_id(db, L"link"), L"sink") }));
+		Assert::AreEqual(size_t(1), results9.size());
+		Assert::AreEqual(item_id2, results9[0].Id);
+	}
+
+	//
+	// ORDER BY / LIMIT
+	//
+	{
+		props::set(db, node_item_type_id, item_id0, strings::get_id(db, L"some"), strings::get_id(db, L"one"));
+		props::set(db, node_item_type_id, item_id1, strings::get_id(db, L"some"), strings::get_id(db, L"two"));
+
+		auto results10 =
+			search::find_nodes
+			(
+				db,
+				search_query({ search_criteria(strings::get_id(db, L"some"), L"%", true) }, L"some", true)
+			);
+		Assert::AreEqual(size_t(2), results10.size());
+		Assert::AreEqual(item_id0, results10[0].Id);
+		Assert::AreEqual(item_id1, results10[1].Id);
+
+		auto results11 =
+			search::find_nodes
+			(
+				db,
+				search_query({ search_criteria(strings::get_id(db, L"some"), L"%", true) }, L"some", false)
+			);
+		Assert::AreEqual(size_t(2), results11.size());
+		Assert::AreEqual(item_id1, results11[0].Id);
+		Assert::AreEqual(item_id0, results11[1].Id);
+
+		auto results12 =
+			search::find_nodes
+			(
+				db,
+				search_query({ search_criteria(strings::get_id(db, L"some"), L"%", true) }, L"some", false, 1)
+			);
+		Assert::AreEqual(size_t(1), results12.size());
+		Assert::AreEqual(item_id1, results12[0].Id);
+	}
+
+	//
+	// SEARCH BY PAYLOAD
+	//
+	{
+		nodes::set_payload(db, item_id1, L"some payload");
+		search_query search1({ search_criteria(strings::get_id(db, L"payload"), L"not that payload") });
+		auto no_payload_results = search::find_nodes(db, search1);
+		Assert::IsTrue(no_payload_results.empty());
+
+		search_query search2({ search_criteria(strings::get_id(db, L"payload"), L"some payload") });
+		auto with_payload_results = search::find_nodes(db, search2);
+		Assert::AreEqual(size_t(1), with_payload_results.size());
+		Assert::IsTrue(!with_payload_results[0].payload.has_value());
+
+		search_query search3({ search_criteria(strings::get_id(db, L"payload"), L"some payload") });
+		search3.m_includePayload = true;
+		auto with_payload_results2 = search::find_nodes(db, search3);
+		Assert::AreEqual(size_t(1), with_payload_results2.size());
+		Assert::AreEqual(std::wstring(L"some payload"), with_payload_results2[0].payload.value());
+	}
+
+	//
+	// SEARCH BY NAME
+	//
+	{
+		search_query search1({ search_criteria(strings::get_id(db, L"name"), L"slow poke") });
+		auto no_results = search::find_nodes(db, search1);
+		Assert::IsTrue(no_results.empty());
+
+		search_query search2({ search_criteria(strings::get_id(db, L"name"), L"show") });
+		auto with_results = search::find_nodes(db, search2);
+		Assert::AreEqual(size_t(1), with_results.size());
+		Assert::IsTrue(with_results[0] == node1);
+	}
+
+	//
+	// SEARCH BY PATH
+	//
+	auto node2 = nodes::create(db, node1.id, strings::get_id(db, L"leafy"), 0);
+	{
+		search_query search1({ search_criteria(strings::get_id(db, L"path"), L"/fred/nothing/ha ha") });
+		auto no_results = search::find_nodes(db, search1);
+		Assert::IsTrue(no_results.empty());
+
+		search_query search2({ search_criteria(strings::get_id(db, L"path"), L"/show") });
+		auto with_results = search::find_nodes(db, search2);
+		Assert::AreEqual(size_t(1), with_results.size());
+		Assert::IsTrue(with_results[0] == node2);
+	}
+
+	//
+	// SEARCH BY PARENT
+	//
+	{
+		auto node3 = nodes::create(db, node1.id, strings::get_id(db, L"leaf"), 0);
+		auto node4 = nodes::create(db, node3.id, strings::get_id(db, L"leafier"), 0);
+
+		search_query search2({ search_criteria(strings::get_id(db, L"path"), L"/show") });
+		auto with_results = search::find_nodes(db, search2);
+		Assert::AreEqual(size_t(3), with_results.size());
+		Assert::IsTrue(hasNode(with_results, node2.Id));
+		Assert::IsTrue(hasNode(with_results, node3.Id));
+		Assert::IsTrue(hasNode(with_results, node4.Id));
+
+		search_query search1({ search_criteria(strings::get_id(db, L"parent"), L"/fred/nothing/ha ha") });
+		auto no_results = search::find_nodes(db, search1);
+		Assert::IsTrue(no_results.empty());
+
+		search_query search3({ search_criteria(strings::get_id(db, L"parent"), L"/show") });
+		auto with_results2 = search::find_nodes(db, search3);
+		Assert::AreEqual(size_t(2), with_results2.size());
+		Assert::IsTrue(hasNode(with_results2, node2.Id));
+		Assert::IsTrue(hasNode(with_results2, node3.Id));
+	}
+
+	//
+	// SEARCH BY TYPE
+	//
+	{
+		auto node3 = nodes::create(db, node1.id, strings::get_id(db, L"leaf2"), strings::get_id(db, L"type1"));
+		auto node4 = nodes::create(db, node3.id, strings::get_id(db, L"leafier2"), strings::get_id(db, L"type2"));
+
+		search_query search2({ search_criteria(strings::get_id(db, L"type"), L"type1") });
+		auto with_results = search::find_nodes(db, search2);
+		Assert::AreEqual(size_t(1), with_results.size());
+		Assert::IsTrue(hasNode(with_results, node3.Id));
+
+		search_query search3({ search_criteria(strings::get_id(db, L"type"), L"type2") });
+		auto with_results2 = search::find_nodes(db, search3);
+		Assert::AreEqual(size_t(1), with_results2.size());
+		Assert::IsTrue(hasNode(with_results2, node4.Id));
+
+		search_query search4({ search_criteria(strings::get_id(db, L"type"), L"fred") });
+		auto with_results3 = search::find_nodes(db, search4);
+		Assert::AreEqual(size_t(0), with_results3.size());
+	}
+	*/
+}
