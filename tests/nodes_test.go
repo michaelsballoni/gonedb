@@ -56,6 +56,12 @@ func TestGetParentsNodeIds(t *testing.T) {
 	AssertNoError(err11)
 	AssertEqual(1, len(child_parent_nodes))
 	AssertEqual(node2.ParentId, child_parent_nodes[0])
+
+	/* FORNOW
+	child_node_path, err12 := gonedb.Nodes.GetNodePath(db, node2.Id)
+	AssertNoError(err12)
+	AssertEqual(fmt.Sprintf("/%d/%d/", node1.Id, node2.Id), child_node_path)
+	*/
 }
 
 func TestNodeCopy(t *testing.T) {

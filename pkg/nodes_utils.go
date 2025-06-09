@@ -2,6 +2,7 @@ package gonedb
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -70,4 +71,39 @@ func (u *utils) IdsToParentsStr(ids []int64) string {
 		}
 	}
 	return builder.String()
+}
+
+// Get the ID of the node at the end of an ID path
+// Just a little string math
+func (u *utils) GetLasttPathId(path string) (int64, error) {
+	if path == "" || path == "/" {
+		return 0, nil
+	}
+
+	start_idx := len(path) - 1
+	if path[start_idx] == '/' {
+		start_idx -= 1
+	}
+	end_idx := start_idx + 1
+
+	for start_idx >= 0 && path[start_idx] != '/' {
+		start_idx -= 1
+	}
+	if start_idx < 0 {
+		return -1, fmt.Errorf("path does not have last /: %s", path)
+	}
+
+	last_node_id_str := path[start_idx+1 : end_idx]
+	if len(last_node_id_str) == 0 {
+		return -1, fmt.Errorf("path does not have last ID value: %s", path)
+	}
+
+	var last_node_id int64
+	var err error
+	last_node_id, err = strconv.ParseInt(last_node_id_str, 10, 64)
+	if err != nil {
+		return -1, err
+	} else {
+		return last_node_id, err
+	}
 }

@@ -66,3 +66,27 @@ func TestIdsToParentsStr(t *testing.T) {
 		AssertEqual(tc.expected, output)
 	}
 }
+
+func TestGetLasttPathId(t *testing.T) {
+	testCases := []struct {
+		input    string
+		expected int64
+	}{
+		{"", 0},
+		{"/", 0},
+		{"/1", 1},
+		{"/1/", 1},
+		{"/1/2", 2},
+		{"/1/2/", 2},
+		{"/1/10/", 10},
+		{"/20/10", 10},
+		{"/20/10/", 10},
+		{"/20/100", 100},
+		{"/20/100/", 100},
+	}
+	for _, tc := range testCases {
+		output, err := gonedb.NodeUtils.GetLasttPathId(tc.input)
+		AssertNoError(err)
+		AssertEqual(tc.expected, output)
+	}
+}

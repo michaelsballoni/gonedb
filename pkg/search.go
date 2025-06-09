@@ -225,28 +225,27 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 				new_sql += "payload = @valstr" + param_num_str
 			}
 			where += new_sql
-			/*
-				FORNOW - Add back path lookup stuff to Nodes to support search like this
-				} else if (crit.m_nameStringId == parent_string_id) { // search directly within a parent node
-					Nodes.GetParentsNodeIds()
-					Nodes.GET
-					auto parent_path_opt = nodes::get_path_nodes(db, crit.m_valueString);
-					if (parent_path_opt.has_value())
-					{
-						int64_t parent_id = parent_path_opt.value().back().id;
-						where += "Items.parent_id = " + std::to_wstring(parent_id);
+			/* FORNOW - Add back path lookup stuff to Nodes to support search like this
+			} else if (crit.m_nameStringId == parent_string_id) { // search directly within a parent node
+						gonedb.Nodes.GetParentsNodeIds(db, )
+						Nodes.GetParentsNodeIds()
+						Nodes.GET
+						auto parent_path_opt = nodes::get_path_nodes(db, crit.m_valueString);
+						if (parent_path_opt.has_value())
+						{
+							int64_t parent_id = parent_path_opt.value().back().id;
+							where += "Items.parent_id = " + std::to_wstring(parent_id);
 					}
 					else
 						where += "1 = 0"; // no path, no results
-				} else if (crit.m_nameStringId == path_string_id) { // search deeply within a parent node
-					auto child_like_opt = nodes::get_path_to_parent_like(db, crit.m_valueString);
-					if (child_like_opt.has_value())
-					{
-						sqlParams["@valstr" + param_num_str] = child_like_opt.value();
-						where += "Items.parents LIKE @valstr" + param_num_str;
-					}
-					else
-						where += "1 = 0"; // no path, no results
+			} else if (crit.m_nameStringId == path_string_id) { // search deeply within a parent node
+				auto child_like_opt = nodes::get_path_to_parent_like(db, crit.m_valueString);
+				if (child_like_opt.has_value())
+				{
+					sqlParams["@valstr" + param_num_str] = child_like_opt.value();
+					where += "Items.parents LIKE @valstr" + param_num_str;
+				}
+			where += "1 = 0"; // no path, no results
 			*/
 		} else {
 			sqlParams["@namestrid"+param_num_str] = createNumVar(crit.NameStringId)

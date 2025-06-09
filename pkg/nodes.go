@@ -302,6 +302,17 @@ func (n *nodes) SetPayload(db *sql.DB, nodeId int64, payload string) error {
 	}
 }
 
+// Get the /-delimited nodeID path of a node
+func (n *nodes) GetNodePathStr(db *sql.DB, nodeId int64) (string, error) {
+	var output string
+	row := db.QueryRow("SELECT parents FROM nodes WHERE id = ?", nodeId)
+	err := row.Scan(&output)
+	if err == nil {
+		output += strconv.FormatInt(nodeId, 10) + "/"
+	}
+	return output, err
+}
+
 // Get nodes leading up to a given node by ID
 func (n *nodes) GetParentPath(db *sql.DB, nodeId int64) ([]Node, error) {
 	if nodeId == 0 {
