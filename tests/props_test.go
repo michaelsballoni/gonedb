@@ -39,7 +39,7 @@ func TestProps(t *testing.T) {
 	to_props, to_err := gonedb.Props.GetAll(db, gonedb.NodeItemTypeId, to_node.Id)
 	AssertNoError(to_err)
 	AssertEqual(3, len(to_props))
-	to_summary, sum_err := gonedb.Props.Summarize(db, to_props)
+	to_summary, sum_err := gonedb.Strings.Summarize(db, to_props)
 	AssertNoError(sum_err)
 	AssertEqual("abbra caddabra\nblet monkey\nsomething else", to_summary)
 
@@ -50,7 +50,7 @@ func TestProps(t *testing.T) {
 	to_props, to_err = gonedb.Props.GetAll(db, gonedb.NodeItemTypeId, to_node.Id)
 	AssertNoError(to_err)
 	AssertEqual(2, len(to_props))
-	to_summary, sum_err = gonedb.Props.Summarize(db, to_props)
+	to_summary, sum_err = gonedb.Strings.Summarize(db, to_props)
 	AssertNoError(sum_err)
 	AssertEqual("abbra caddabra\nsomething else", to_summary)
 

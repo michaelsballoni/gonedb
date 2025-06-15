@@ -3,6 +3,7 @@ package gonedb
 import (
 	"database/sql"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -103,6 +104,48 @@ func (s *nlstrings) GetVals(db *sql.DB, ids []int64) (map[int64]string, error) {
 	}
 
 	return output, nil
+}
+
+// Take a stringID-to-stringID map and return a stringValue-to-stringValue map
+func (s *nlstrings) Fill(db *sql.DB, nameValueStrIds map[int64]int64) (map[string]string, error) {
+	output := map[string]string{}
+	var name_str, val_str string
+	var cur_err error
+	for name_string_id, value_string_id := range nameValueStrIds {
+		name_str, cur_err = s.GetVal(db, name_string_id)
+		if cur_err != nil {
+			return map[string]string{}, cur_err
+		}
+		val_str, cur_err = s.GetVal(db, value_string_id)
+		if cur_err != nil {
+			return map[string]string{}, cur_err
+		}
+		output[name_str] = val_str
+	}
+	return output, nil
+}
+
+// Take a stringID-to-stringID map and return a line-delimited string summarizing the names and values
+func (s *nlstrings) Summarize(db *sql.DB, nameValueStrIds map[int64]int64) (string, error) {
+	string_map, fill_err := s.Fill(db, nameValueStrIds)
+	if fill_err != nil {
+		return "", fill_err
+	}
+
+	names := make([]string, 0, len(string_map))
+	for k, _ := range string_map {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	var builder strings.Builder
+	for _, name := range names {
+		if builder.Len() > 0 {
+			builder.WriteRune('\n')
+		}
+		builder.WriteString(name + " " + string_map[name])
+	}
+	return builder.String(), nil
 }
 
 // Flush the string -> ID cache

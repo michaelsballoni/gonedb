@@ -313,8 +313,8 @@ func (n *nodes) GetNodePathStr(db *sql.DB, nodeId int64) (string, error) {
 	return output, err
 }
 
-// Get nodes leading up to a given node by ID
-func (n *nodes) GetParentPath(db *sql.DB, nodeId int64) ([]Node, error) {
+// Get nodes leading up to and including given node by ID
+func (n *nodes) GetPathNodes(db *sql.DB, nodeId int64) ([]Node, error) {
 	if nodeId == 0 {
 		return []Node{}, nil
 	}
@@ -325,6 +325,7 @@ func (n *nodes) GetParentPath(db *sql.DB, nodeId int64) ([]Node, error) {
 	} else if len(parent_node_ids) == 0 {
 		return []Node{}, nil
 	}
+	parent_node_ids = append(parent_node_ids, nodeId)
 
 	sql_in, sql_in_err := NodeUtils.IdsToSqlIn(parent_node_ids)
 	if sql_in_err != nil {
