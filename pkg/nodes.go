@@ -302,62 +302,6 @@ func (n *nodes) SetPayload(db *sql.DB, nodeId int64, payload string) error {
 	}
 }
 
-// Get the /-delimited nodeID path of a node
-func (n *nodes) GetNodePathStr(db *sql.DB, nodeId int64) (string, error) {
-	var output string
-	row := db.QueryRow("SELECT parents FROM nodes WHERE id = ?", nodeId)
-	err := row.Scan(&output)
-	if err == nil {
-		output += strconv.FormatInt(nodeId, 10) + "/"
-	}
-	return output, err
-}
-
-// Get nodes leading up to and including given node by ID
-func (n *nodes) GetPathNodes(db *sql.DB, nodeId int64) ([]Node, error) {
-	if nodeId == 0 {
-		return []Node{}, nil
-	}
-
-	parent_node_ids, parent_node_ids_err := n.GetParentsNodeIds(db, nodeId)
-	if parent_node_ids_err != nil {
-		return []Node{}, parent_node_ids_err
-	} else if len(parent_node_ids) == 0 {
-		return []Node{}, nil
-	}
-	parent_node_ids = append(parent_node_ids, nodeId)
-
-	sql_in, sql_in_err := NodeUtils.IdsToSqlIn(parent_node_ids)
-	if sql_in_err != nil {
-		return []Node{}, sql_in_err
-	}
-	sql := "SELECT id, parent_id, name_string_id, type_string_id FROM nodes WHERE id IN (" + sql_in + ")"
-	rows, query_err := db.Query(sql)
-	if query_err != nil {
-		return []Node{}, query_err
-	}
-	collector := make(map[int64]Node, len(parent_node_ids))
-	var id, parent_id, name_string_id, type_string_id int64
-	for rows.Next() {
-		scan_err := rows.Scan(&id, &parent_id, &name_string_id, &type_string_id)
-		if scan_err != nil {
-			return []Node{}, scan_err
-		}
-		collector[id] = Node{Id: id, ParentId: parent_id, NameStringId: name_string_id, TypeStringId: type_string_id}
-	}
-
-	output := make([]Node, 0, len(parent_node_ids))
-	for _, parent_node_id := range parent_node_ids {
-		found_node, ok := collector[parent_node_id]
-		if !ok {
-			return []Node{}, fmt.Errorf("Parent node in path not found")
-		} else {
-			output = append(output, found_node)
-		}
-	}
-	return output, nil
-}
-
 // Get the parent of a node
 func (n *nodes) GetParent(db *sql.DB, nodeId int64) (Node, error) {
 	var node Node

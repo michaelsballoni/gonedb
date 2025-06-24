@@ -2,58 +2,86 @@ package gonedb
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 type cmd struct {
-	Db             *sql.DB
-	Cur            Node
-	NodeItemTypeId int64
+	Cur Node
 }
 
-func CreateCmd(db *sql.DB) cmd {
-	return cmd{
-		Db: db,
+func CreateCmd() cmd {
+	return cmd{}
+}
+
+func (c *cmd) Mount(db *sql.DB, dirPath string) error {
+	// normalize the input path
+	dirPath = strings.TrimSpace(dirPath)
+	if len(dirPath) == 0 {
+		dirPath = "."
 	}
+	if dirPath == "." {
+		return nil
+	}
+	if dirPath == "/" {
+		c.Cur = Node{}
+		return nil
+	}
+
+	// get the path to the new node
+	var new_node_path string = ""
+	if dirPath[0] == '/' {
+		node_strs, strs_err := NodePaths.GetStrs(db, c.Cur)
+		if strs_err != nil {
+			return strs_err
+		}
+
+		new_node_path = strings.Join(node_strs, "/")
+		if len(new_node_path) == 0 || new_node_path[len(new_node_path)-1] != '/' {
+			new_node_path += "/"
+		}
+		new_node_path += dirPath
+	} else {
+		new_node_path = dirPath
+	}
+
+	// split the new node path
+	path_parts := strings.Split(new_node_path, "/")
+	path_parts_out := make([]string, 0, len(path_parts))
+	for _, v := range path_parts {
+		v_trim := strings.TrimSpace(v)
+		if v_trim != "" {
+			path_parts_out = append(path_parts_out, v_trim)
+		}
+	}
+
+	// get the nodes for the new path
+	nodes_path, nodes_path_err := NodePaths.GetStrNodes(db, path_parts_out)
+	if nodes_path_err != nil {
+		return nodes_path_err
+	} else if nodes_path == nil || len(*nodes_path) == 0 {
+		return fmt.Errorf("node not found at path")
+	}
+
+	c.Cur = (*nodes_path)[len(*nodes_path)-1]
 }
 
 /* FORNOW
-void mount(const std::wstring& dirPath);
-*/
-
-/* FORNOW
-	if len(path) == 0 {
-		return Node{}, Errorf("Empty path")
+func (c *cmd) Cd(db *sql.DB, newPath string) error {
+	nodes_path, nodes_path_err := NodePaths.GetStrNodes(db, newPath)
+	if nodes_path_err != nil {
+		return nodes_path_err
+	} else if nodes_path == nil || len(*nodes_path) == 0 {
+		return fmt.Errorf("node not found at path")
 	}
 
-	if path == "/" {
-		return Node{}, nil
-	}
-
-	new_cur_path = ""
-	if path[0] != '/' { // relative
-		new_cur_path = Nodes::get_path_str(m_db, m_cur);
-		if ((new_cur_path.empty() || new_cur_path.back() != '/') && path.find('/') == std::wstring::npos)
-			new_cur_path += '/';
-		new_cur_path += path;
-	} else { // absolute
-		new_cur_path = path;
-	}
-
-	auto nodes_opt = nodes::get_path_nodes(m_db, new_cur_path);
-	if (!nodes_opt.has_value() || nodes_opt.value().empty())
-		throw nldberr("Path does not resolve to node: " + toNarrowStr(new_cur_path));
-	else
-		return nodes_opt.value().back();
-}
-
-void cmd::cd(const std::wstring& newPath)
-{
-	m_cur = get_node_from_path(newPath);
+	c.Cur = (*nodes_path)[len(*nodes_path) - 1]
 }
 
 std::vector<std::wstring> cmd::dir()
 {
 	std::vector<std::wstring> paths;
+
 	for (auto child : nodes::get_children(m_db, m_cur.id))
 		paths.emplace_back(nodes::get_path_str(m_db, child));
 	std::sort(paths.begin(), paths.end());
