@@ -14,20 +14,17 @@ var Loader loader
 // Load a file system directory into a node
 func (loader *loader) Load(db *sql.DB, curPath string, curNode Node) error {
 	// Get the file system entries at the current level
+	//fmt.Printf("Load: %s\n", curPath)
 	entries, entry_err := os.ReadDir(curPath)
-	if entry_err != nil {
-		return entry_err
+	if len(entries) == 0 || entry_err != nil { // ignore empty / sharing errors, etc.
+		return nil
 	}
+	//fmt.Printf("Load: %s -> %d\n", curPath, len(entries))
 
 	// walk the entries
 	for _, entry := range entries {
-		abs_path, abs_err := filepath.Abs(entry.Name())
-		if abs_err != nil {
-			return abs_err
-		}
-		name := entry.Name()
-
 		// get the node's name
+		name := entry.Name()
 		name_string_id, str_err := Strings.GetId(db, name)
 		if str_err != nil {
 			return str_err
@@ -35,10 +32,7 @@ func (loader *loader) Load(db *sql.DB, curPath string, curNode Node) error {
 
 		// get or create the child node
 		new_node, node_err := Nodes.GetNodeInParent(db, curNode.Id, name_string_id)
-		if node_err != nil {
-			return node_err
-		}
-		if new_node.Id <= 0 {
+		if new_node.Id < 0 {
 			var new_node_type_id int64 = 0
 			new_node, node_err = Nodes.Create(db, curNode.Id, name_string_id, new_node_type_id)
 		}
@@ -48,7 +42,11 @@ func (loader *loader) Load(db *sql.DB, curPath string, curNode Node) error {
 
 		// recurse on sub-child-dirs
 		if entry.IsDir() {
-			loader.Load(db, abs_path, new_node)
+			abs_path := filepath.Join(curPath, name)
+			load_err := loader.Load(db, abs_path, new_node)
+			if load_err != nil {
+				return load_err
+			}
 		}
 	}
 

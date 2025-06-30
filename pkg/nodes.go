@@ -40,7 +40,12 @@ func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
 
 // Create a new node
 func (n *nodes) Create(db *sql.DB, parentNodeId int64, nameStringId int64, typeStringId int64) (Node, error) {
-	// Add parents of the parent
+	// bail early on null node case
+	if parentNodeId == 0 && nameStringId == 0 {
+		return Node{}, nil
+	}
+
+	// add parents of the parent
 	parent_node_ids, err := n.GetParentsNodeIds(db, parentNodeId)
 	if err != nil {
 		return Node{}, err
@@ -312,7 +317,12 @@ func (n *nodes) GetParent(db *sql.DB, nodeId int64) (Node, error) {
 
 // Get the node in a parent by anem
 func (n *nodes) GetNodeInParent(db *sql.DB, parentNodeId int64, nameStringId int64) (Node, error) {
+	if parentNodeId == 0 && nameStringId == 0 {
+		return Node{}, nil
+	}
+
 	var node Node
+	node.Id = -1
 	node.ParentId = parentNodeId
 	node.NameStringId = nameStringId
 	row := db.QueryRow("SELECT id, type_string_id FROM nodes WHERE parent_id = ? AND name_string_id = ?", parentNodeId, nameStringId)

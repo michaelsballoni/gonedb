@@ -2,8 +2,6 @@ package gonedb
 
 import (
 	"database/sql"
-	"fmt"
-	"strings"
 )
 
 type cmd struct {
@@ -14,7 +12,11 @@ func CreateCmd() cmd {
 	return cmd{}
 }
 
+// Mount the given file system directory into the current node
 func (c *cmd) Mount(db *sql.DB, dirPath string) error {
+	load_err := Loader.Load(db, dirPath, c.Cur)
+	return load_err
+	/* FORNOW
 	// normalize the input path
 	dirPath = strings.TrimSpace(dirPath)
 	if len(dirPath) == 0 {
@@ -64,6 +66,7 @@ func (c *cmd) Mount(db *sql.DB, dirPath string) error {
 	}
 
 	c.Cur = (*nodes_path)[len(*nodes_path)-1]
+	*/
 }
 
 /* FORNOW
