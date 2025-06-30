@@ -2,6 +2,7 @@ package gonedb
 
 import (
 	"database/sql"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -141,20 +142,16 @@ func varToSql(v variant) string {
 }
 
 func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]variant) (string, error) {
-	var name_string_id, payload_string_id, type_string_id, order_by_string_id int64
+	var parent_string_id, path_string_id, name_string_id, payload_string_id, type_string_id, order_by_string_id int64
 	var err error
-	// FORNOW parent_string_id, path_string_id,
-	/*
-		parent_string_id, err = Strings.GetId(db, "parent")
-		if err != nil {
-			return "", err
-		}
-
-		path_string_id, err = Strings.GetId(db, "path")
-		if err != nil {
-			return "", err
-		}
-	*/
+	parent_string_id, err = Strings.GetId(db, "parent")
+	if err != nil {
+		return "", err
+	}
+	path_string_id, err = Strings.GetId(db, "path")
+	if err != nil {
+		return "", err
+	}
 	name_string_id, err = Strings.GetId(db, "name")
 	if err != nil {
 		return "", err
@@ -225,28 +222,26 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 				new_sql += "payload = @valstr" + param_num_str
 			}
 			where += new_sql
-			/* FORNOW - Add back path lookup stuff to Nodes to support search like this
-			} else if (crit.m_nameStringId == parent_string_id) { // search directly within a parent node
-						gonedb.Nodes.GetParentsNodeIds(db, )
-						Nodes.GetParentsNodeIds()
-						Nodes.GET
-						auto parent_path_opt = nodes::get_path_nodes(db, crit.m_valueString);
-						if (parent_path_opt.has_value())
-						{
-							int64_t parent_id = parent_path_opt.value().back().id;
-							where += "Items.parent_id = " + std::to_wstring(parent_id);
-					}
-					else
-						where += "1 = 0"; // no path, no results
-			} else if (crit.m_nameStringId == path_string_id) { // search deeply within a parent node
-				auto child_like_opt = nodes::get_path_to_parent_like(db, crit.m_valueString);
-				if (child_like_opt.has_value())
-				{
-					sqlParams["@valstr" + param_num_str] = child_like_opt.value();
-					where += "Items.parents LIKE @valstr" + param_num_str;
+		} else if crit.NameStringId == parent_string_id { // search directly within a parent node
+			path_nodes, path_err := NodePaths.GetStrNodes(db, strings.Split(crit.ValueString, "/"))
+			if path_err == nil && len(*path_nodes) > 0 {
+				parent_node := (*path_nodes)[len(*path_nodes)-1]
+				where += fmt.Sprintf("Items.parent_id = %d", parent_node.Id)
+			} else {
+				where += "1 = 0" // no path, no results
+			}
+		} else if crit.NameStringId == path_string_id { // search deeply within a parent node
+			path_nodes, path_err := NodePaths.GetStrNodes(db, strings.Split(crit.ValueString, "/"))
+			if path_err == nil && len(*path_nodes) > 0 {
+				parent_node := (*path_nodes)[len(*path_nodes)-1]
+				child_like, child_err := Nodes.GetChildNodesLikeExpression(db, parent_node.Id)
+				if child_err == nil {
+					sqlParams["@valstr"+param_num_str] = createStrVar(child_like)
+					where += "Items.parents LIKE @valstr" + param_num_str
 				}
-			where += "1 = 0"; // no path, no results
-			*/
+			} else {
+				where += "1 = 0" // no path, no results
+			}
 		} else {
 			sqlParams["@namestrid"+param_num_str] = createNumVar(crit.NameStringId)
 

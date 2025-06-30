@@ -271,45 +271,70 @@ func TestSearch(t *testing.T) {
 		}
 	}
 
-	/* FORNOW
 	//
-	// SEARCH BY PATH
-	//
-	auto node2 = nodes::create(db, node1.id, strings::get_id(db, L"leafy"), 0);
-	{
-		search_query search1({ search_criteria(strings::get_id(db, L"path"), L"/fred/nothing/ha ha") });
-		auto no_results = search::find_nodes(db, search1);
-		Assert::IsTrue(no_results.empty());
-
-		search_query search2({ search_criteria(strings::get_id(db, L"path"), L"/show") });
-		auto with_results = search::find_nodes(db, search2);
-		Assert::AreEqual(size_t(1), with_results.size());
-		Assert::IsTrue(with_results[0] == node2);
-	}
-
-	//
-	// SEARCH BY PARENT
+	// SEARCH BY PARENT OR PATH
 	//
 	{
-		auto node3 = nodes::create(db, node1.id, strings::get_id(db, L"leaf"), 0);
-		auto node4 = nodes::create(db, node3.id, strings::get_id(db, L"leafier"), 0);
+		{
+			root_parent, err := gonedb.Nodes.Create(db, item_id0, GetTestStringId(db, "trunk"), GetTestStringId(db, "tree"))
+			AssertNoError(err)
+			leaf_node, err := gonedb.Nodes.Create(db, root_parent.Id, GetTestStringId(db, "leaf"), GetTestStringId(db, "plant"))
+			AssertNoError(err)
+			leafy_node, err := gonedb.Nodes.Create(db, leaf_node.Id, GetTestStringId(db, "leafy"), GetTestStringId(db, "plant"))
+			AssertNoError(err)
+			leafier_node, err := gonedb.Nodes.Create(db, leaf_node.Id, GetTestStringId(db, "leafier"), GetTestStringId(db, "plant"))
+			AssertNoError(err)
 
-		search_query search2({ search_criteria(strings::get_id(db, L"path"), L"/show") });
-		auto with_results = search::find_nodes(db, search2);
-		Assert::AreEqual(size_t(3), with_results.size());
-		Assert::IsTrue(hasNode(with_results, node2.Id));
-		Assert::IsTrue(hasNode(with_results, node3.Id));
-		Assert::IsTrue(hasNode(with_results, node4.Id));
+			{
+				var search_query gonedb.SearchQuery
+				search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "parent"), ValueString: "/not the root"}}
+				node_results, err = gonedb.Search.FindNodes(db, &search_query)
+				AssertNoError(err)
+				AssertEqual(0, len(node_results))
+			}
 
-		search_query search1({ search_criteria(strings::get_id(db, L"parent"), L"/fred/nothing/ha ha") });
-		auto no_results = search::find_nodes(db, search1);
-		Assert::IsTrue(no_results.empty());
+			{
+				var search_query gonedb.SearchQuery
+				search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "parent"), ValueString: "/trunk"}}
+				node_results, err = gonedb.Search.FindNodes(db, &search_query)
+				AssertNoError(err)
+				AssertEqual(1, len(node_results))
+				AssertEqual(leaf_node.Id, node_results[0].Id)
+			}
 
-		search_query search3({ search_criteria(strings::get_id(db, L"parent"), L"/show") });
-		auto with_results2 = search::find_nodes(db, search3);
-		Assert::AreEqual(size_t(2), with_results2.size());
-		Assert::IsTrue(hasNode(with_results2, node2.Id));
-		Assert::IsTrue(hasNode(with_results2, node3.Id));
+			{
+				var search_query gonedb.SearchQuery
+				search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "path"), ValueString: "/sprunklediodl7y/leaf"}}
+				node_results, err = gonedb.Search.FindNodes(db, &search_query)
+				AssertNoError(err)
+				AssertEqual(0, len(node_results))
+			}
+
+			{
+				var search_query gonedb.SearchQuery
+				search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "path"), ValueString: "/trunk/leaf"}}
+				node_results, err = gonedb.Search.FindNodes(db, &search_query)
+				AssertNoError(err)
+				AssertEqual(2, len(node_results))
+				AssertTrue(
+					(node_results[0].Id == leafy_node.Id && node_results[1].Id == leafier_node.Id) ||
+						(node_results[1].Id == leafy_node.Id && node_results[0].Id == leafier_node.Id))
+			}
+
+			{
+				var search_query gonedb.SearchQuery
+				search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "path"), ValueString: "/trunk"}}
+				node_results, err = gonedb.Search.FindNodes(db, &search_query)
+				AssertNoError(err)
+				AssertEqual(3, len(node_results))
+				ids := map[int64]bool{}
+				for _, n := range node_results {
+					ids[n.Id] = true
+				}
+				AssertTrue(ids[leaf_node.Id])
+				AssertTrue(ids[leafy_node.Id])
+				AssertTrue(ids[leafier_node.Id])
+			}
+		}
 	}
-	*/
 }

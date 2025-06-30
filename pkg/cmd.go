@@ -2,18 +2,20 @@ package gonedb
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
-type cmd struct {
+type cmd_struct struct {
 	Cur Node
 }
 
-func CreateCmd() cmd {
-	return cmd{}
+func CreateCmd() cmd_struct {
+	return cmd_struct{}
 }
 
 // Mount the given file system directory into the current node
-func (c *cmd) Mount(db *sql.DB, dirPath string) error {
+func (c *cmd_struct) Mount(db *sql.DB, dirPath string) error {
 	load_err := Loader.Load(db, dirPath, c.Cur)
 	return load_err
 	/* FORNOW
@@ -69,18 +71,19 @@ func (c *cmd) Mount(db *sql.DB, dirPath string) error {
 	*/
 }
 
-/* FORNOW
-func (c *cmd) Cd(db *sql.DB, newPath string) error {
-	nodes_path, nodes_path_err := NodePaths.GetStrNodes(db, newPath)
+func (c *cmd_struct) Cd(db *sql.DB, newPath string) error {
+	nodes_path, nodes_path_err := NodePaths.GetStrNodes(db, strings.Split(newPath, "/"))
 	if nodes_path_err != nil {
 		return nodes_path_err
 	} else if nodes_path == nil || len(*nodes_path) == 0 {
 		return fmt.Errorf("node not found at path")
 	}
 
-	c.Cur = (*nodes_path)[len(*nodes_path) - 1]
+	c.Cur = (*nodes_path)[len(*nodes_path)-1]
+	return nil
 }
 
+/* FORNOW
 std::vector<std::wstring> cmd::dir()
 {
 	std::vector<std::wstring> paths;
