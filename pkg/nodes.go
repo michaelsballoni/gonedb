@@ -392,6 +392,10 @@ func (n *nodes) GetChildNodesLikeExpression(db *sql.DB, nodeId int64) (string, e
 	if err != nil {
 		return "", err
 	}
-	original_node_parents = strings.Trim(original_node_parents, "/") + "/" + strconv.FormatInt(nodeId, 10) + "/%"
+	original_node_parents = strings.Trim(original_node_parents, "/")
+	if len(original_node_parents) > 0 {
+		original_node_parents = original_node_parents + "/"
+	}
+	original_node_parents = original_node_parents + strconv.FormatInt(nodeId, 10) + "/%"
 	return original_node_parents, nil
 }

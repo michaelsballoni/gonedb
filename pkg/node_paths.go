@@ -76,7 +76,11 @@ func (np *node_paths) GetStrNodes(db *sql.DB, pathParts []string) (*[]Node, erro
 
 		node_in_parent, node_err := Nodes.GetNodeInParent(db, cur_node_id, cur_name_string_id)
 		if node_err != nil {
-			return nil, node_err
+			if node_err == sql.ErrNoRows {
+				return nil, nil
+			} else {
+				return nil, node_err
+			}
 		}
 
 		output = append(output, node_in_parent)

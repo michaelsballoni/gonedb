@@ -2,7 +2,6 @@ package test
 
 import (
 	"database/sql"
-	"fmt"
 	"testing"
 
 	gonedb "github.com/michaelsballoni/gonedb/pkg"
@@ -319,8 +318,8 @@ func TestSearchByPath(t *testing.T) {
 		search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "path"), ValueString: "/trunk/leaf"}}
 		ctxt.node_results, ctxt.err = gonedb.Search.FindNodes(db, &search_query)
 		AssertNoError(ctxt.err)
-		// FORNOW
-		fmt.Printf(">>>>>> /trunk/leaf node_results: %v <<<<<<<\n", ctxt.node_results)
+		// DEBUG
+		//fmt.Printf(">>>>>> /trunk/leaf node_results: %v <<<<<<<\n", ctxt.node_results)
 		AssertEqual(2, len(ctxt.node_results))
 		AssertTrue(
 			(ctxt.node_results[0] == leafy_node && ctxt.node_results[1] == leafier_node) ||
@@ -332,8 +331,8 @@ func TestSearchByPath(t *testing.T) {
 		search_query.Criteria = []gonedb.SearchCriteria{{NameStringId: GetTestStringId(db, "path"), ValueString: "/trunk"}}
 		ctxt.node_results, ctxt.err = gonedb.Search.FindNodes(db, &search_query)
 		AssertNoError(ctxt.err)
-		// FORNOW
-		fmt.Printf(">>>>>> /trunk node_results: %v <<<<<<<\n", ctxt.node_results)
+		// DEBUG
+		//fmt.Printf(">>>>>> /trunk node_results: %v <<<<<<<\n", ctxt.node_results)
 		AssertEqual(3, len(ctxt.node_results))
 		ids := map[int64]bool{}
 		for _, n := range ctxt.node_results {
