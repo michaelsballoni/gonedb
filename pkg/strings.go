@@ -133,7 +133,7 @@ func (s *nlstrings) Summarize(db *sql.DB, nameValueStrIds map[int64]int64) (stri
 	}
 
 	names := make([]string, 0, len(string_map))
-	for k, _ := range string_map {
+	for k := range string_map {
 		names = append(names, k)
 	}
 	sort.Strings(names)

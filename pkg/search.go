@@ -29,10 +29,12 @@ func (s *search) FindNodes(db *sql.DB, searchQuery *SearchQuery) ([]Node, error)
 		return []Node{}, err
 	}
 
+	// FORNOW DEBUG
+	fmt.Printf(">>>>>> Search SQL:          %v <<<<<<<\n", sql)
 	for k, v := range sql_params {
 		sql = strings.ReplaceAll(sql, k, varToSql(v))
 	}
-	//fmt.Printf("PRM: sql: %s - err: %v\n", sql, err)
+	fmt.Printf(">>>>>> Search SQL w/params: %v <<<<<<<\n", sql)
 
 	output := []Node{}
 	var cur_node Node
@@ -190,7 +192,8 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 
 		param_num_str := strconv.Itoa(param_num + 1)
 
-		if crit.NameStringId == name_string_id { // searching by name
+		switch crit.NameStringId {
+		case name_string_id: // searching by name
 			new_sql := "Items.id IN (SELECT InnerNodes.id FROM nodes InnerNodes JOIN strings NameStrings ON NameStrings.id = InnerNodes.name_string_id WHERE "
 			if crit.UseLike {
 				sqlParams["@valstr"+param_num_str] = createStrVar(crit.ValueString)
@@ -206,14 +209,14 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 			new_sql += ")"
 
 			where += new_sql
-		} else if crit.NameStringId == type_string_id { // searching by type
+		case type_string_id: // searching by type
 			val_string_id, val_string_err := Strings.GetId(db, crit.ValueString)
 			if val_string_err != nil {
 				return "", val_string_err
 			}
 			sqlParams["@valstrid"+param_num_str] = createNumVar(val_string_id)
 			where += "type_string_id = @valstrid" + param_num_str
-		} else if crit.NameStringId == payload_string_id { // search by payload
+		case payload_string_id: // search by payload
 			new_sql := ""
 			sqlParams["@valstr"+param_num_str] = createStrVar(crit.ValueString)
 			if crit.UseLike {
@@ -222,7 +225,7 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 				new_sql += "payload = @valstr" + param_num_str
 			}
 			where += new_sql
-		} else if crit.NameStringId == parent_string_id { // search directly within a parent node
+		case parent_string_id: // search directly within a parent node
 			path_nodes, path_err := NodePaths.GetStrNodes(db, strings.Split(crit.ValueString, "/"))
 			if path_err == nil && len(*path_nodes) > 0 {
 				parent_node := (*path_nodes)[len(*path_nodes)-1]
@@ -230,7 +233,7 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 			} else {
 				where += "1 = 0" // no path, no results
 			}
-		} else if crit.NameStringId == path_string_id { // search deeply within a parent node
+		case path_string_id: // search deeply within a parent node
 			path_nodes, path_err := NodePaths.GetStrNodes(db, strings.Split(crit.ValueString, "/"))
 			if path_err == nil && len(*path_nodes) > 0 {
 				parent_node := (*path_nodes)[len(*path_nodes)-1]
@@ -242,7 +245,7 @@ func get_find_sql(db *sql.DB, findParams *find_params, sqlParams map[string]vari
 			} else {
 				where += "1 = 0" // no path, no results
 			}
-		} else {
+		default:
 			sqlParams["@namestrid"+param_num_str] = createNumVar(crit.NameStringId)
 
 			new_sql := "Items.id IN (SELECT itemid FROM props WHERE itemtypeid = @node_item_type_id AND namestrid = @namestrid" + param_num_str

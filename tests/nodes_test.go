@@ -205,16 +205,17 @@ func TestNodeRemove(t *testing.T) {
 	AssertNoError(move_grandchildren_err)
 	AssertEqual(2, len(move_grandchildren))
 
-	// rename the child in place
+	// remove the child
 	rem_err := gonedb.Nodes.Remove(db, child_node.Id)
 	AssertNoError(rem_err)
 
 	// get the renamed
 	_, get_rem_err := gonedb.Nodes.Get(db, child_node.Id)
-	AssertError(get_rem_err)
+	AssertError(get_rem_err) // should fail
 
 	// get the grandchildren
 	grandkids, rem_grandchildren_err := gonedb.Nodes.GetChildren(db, child_node.Id)
+	//fmt.Printf("grandkids: %v - rem_grandchildren_err: %v\n", grandkids, rem_grandchildren_err)
 	AssertNoError(rem_grandchildren_err)
 	AssertEqual(0, len(grandkids))
 

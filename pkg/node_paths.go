@@ -65,14 +65,20 @@ func (np *node_paths) GetStrNodes(db *sql.DB, pathParts []string) (*[]Node, erro
 	output := []Node{}
 	var cur_node_id int64
 	for _, part := range pathParts {
+		if part == "" {
+			continue
+		}
+
 		cur_name_string_id, str_err := Strings.GetId(db, part)
 		if str_err != nil {
 			return nil, str_err
 		}
+
 		node_in_parent, node_err := Nodes.GetNodeInParent(db, cur_node_id, cur_name_string_id)
 		if node_err != nil {
 			return nil, node_err
 		}
+
 		output = append(output, node_in_parent)
 		cur_node_id = node_in_parent.Id
 	}

@@ -16,10 +16,11 @@ func GetTestDb(name string) *sql.DB {
 	if tmp_err != nil {
 		panic(fmt.Sprintf("GetTestDb fails CreateTemp: %v", tmp_err))
 	}
-	name = tmp_file.Name()
+	tmp_file_name := tmp_file.Name()
+	fmt.Printf("GetTestDb: %s: %s\n", name, tmp_file_name)
 
-	os.Remove(name)
-	db, err := sql.Open("sqlite3", name)
+	os.Remove(tmp_file_name)
+	db, err := sql.Open("sqlite3", tmp_file_name)
 	if err != nil {
 		panic(fmt.Sprintf("GetTestDb fails Open: %v", err))
 	}

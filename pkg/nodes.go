@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type nodes struct{}
@@ -21,6 +22,10 @@ type Node struct {
 
 // Get a node given an ID
 func (n *nodes) Get(db *sql.DB, nodeId int64) (Node, error) {
+	if nodeId == 0 {
+		return Node{}, nil
+	}
+
 	found_node, found := NodeCache.Get(nodeId)
 	if found {
 		return found_node, nil
@@ -343,10 +348,12 @@ func (n *nodes) GetAllChildNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
 	if child_nodes_like_err != nil {
 		return []int64{}, child_nodes_like_err
 	}
+
 	query, query_err := db.Query("SELECT id FROM nodes WHERE parents LIKE ?", child_nodes_like)
 	if query_err != nil {
 		return []int64{}, query_err
 	}
+
 	var cur_id int64
 	for query.Next() {
 		scan_err := query.Scan(&cur_id)
@@ -384,9 +391,7 @@ func (n *nodes) GetChildNodesLikeExpression(db *sql.DB, nodeId int64) (string, e
 	err := row.Scan(&original_node_parents)
 	if err != nil {
 		return "", err
-	} else if original_node_parents == "" || original_node_parents[len(original_node_parents)-1] != '/' {
-		original_node_parents = "/"
 	}
-	original_node_parents = original_node_parents + strconv.FormatInt(nodeId, 10) + "/%"
+	original_node_parents = strings.Trim(original_node_parents, "/") + "/" + strconv.FormatInt(nodeId, 10) + "/%"
 	return original_node_parents, nil
 }
