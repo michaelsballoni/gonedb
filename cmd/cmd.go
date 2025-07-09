@@ -17,14 +17,14 @@ func file_exists(name string) bool {
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Printf("Usage: %s <op> <db file path>\n", os.Args[0])
+		fmt.Println("Usage: <db file path>")
 		return
 	}
 
 	op := os.Args[1]
 
 	db_file := os.Args[2]
-	fmt.Println("op:", op, "db_file:", db_file, "file_exists:", file_exists(db_file))
+	fmt.Println("db_file:", db_file, "file_exists:", file_exists(db_file))
 
 	fmt.Println("Opening database...")
 	db, err := sql.Open("sqlite3", db_file)
@@ -42,13 +42,29 @@ func main() {
 	}
 	fmt.Println("SQLite version:", version)
 
-	if op == "setup" {
-		fmt.Println("Setting up database...")
-		gonedb.Setup(db)
-		fmt.Println("Database created!")
-		return
-	}
+	was_unknown := false
+	for {
+		if op == "help" || was_unknown {
+			fmt.Println("Commands:")
+			fmt.Println("setup:", "Set up database for initial use.  You do this once.  Any info in the file is lost.")
+			fmt.Println("exit or quit:", "Quit this program")
+			fmt.Println("help:", "Display this help ;)")
+			was_unknown = false
+			continue
+		}
 
-	fmt.Println("Unknown op:", op)
-	os.Exit(1)
+		if op == "setup" {
+			fmt.Println("Setting up database...")
+			gonedb.Setup(db)
+			fmt.Println("Database created!")
+			continue
+		}
+
+		if op == "exit" || op == "quit" {
+			return
+		}
+
+		fmt.Println("Unknown op:", op)
+		was_unknown = true
+	}
 }

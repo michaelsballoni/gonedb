@@ -3,6 +3,7 @@ package gonedb
 import (
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -15,280 +16,326 @@ func CreateCmd() cmd_struct {
 }
 
 // Mount the given file system directory into the current node
+// adding all file system entries in the directories as nodes into gonedb
 func (c *cmd_struct) Mount(db *sql.DB, dirPath string) error {
 	load_err := Loader.Load(db, dirPath, c.Cur)
 	return load_err
-	/* FORNOW
-	// normalize the input path
-	dirPath = strings.TrimSpace(dirPath)
-	if len(dirPath) == 0 {
-		dirPath = "."
-	}
-	if dirPath == "." {
-		return nil
-	}
-	if dirPath == "/" {
-		c.Cur = Node{}
-		return nil
-	}
-
-	// get the path to the new node
-	var new_node_path string = ""
-	if dirPath[0] == '/' {
-		node_strs, strs_err := NodePaths.GetStrs(db, c.Cur)
-		if strs_err != nil {
-			return strs_err
-		}
-
-		new_node_path = strings.Join(node_strs, "/")
-		if len(new_node_path) == 0 || new_node_path[len(new_node_path)-1] != '/' {
-			new_node_path += "/"
-		}
-		new_node_path += dirPath
-	} else {
-		new_node_path = dirPath
-	}
-
-	// split the new node path
-	path_parts := strings.Split(new_node_path, "/")
-	path_parts_out := make([]string, 0, len(path_parts))
-	for _, v := range path_parts {
-		v_trim := strings.TrimSpace(v)
-		if v_trim != "" {
-			path_parts_out = append(path_parts_out, v_trim)
-		}
-	}
-
-	// get the nodes for the new path
-	nodes_path, nodes_path_err := NodePaths.GetStrNodes(db, path_parts_out)
-	if nodes_path_err != nil {
-		return nodes_path_err
-	} else if nodes_path == nil || len(*nodes_path) == 0 {
-		return fmt.Errorf("node not found at path")
-	}
-
-	c.Cur = (*nodes_path)[len(*nodes_path)-1]
-	*/
 }
 
+// Update the current node to point to a new path
 func (c *cmd_struct) Cd(db *sql.DB, newPath string) error {
 	nodes_path, nodes_path_err := NodePaths.GetStrNodes(db, strings.Split(newPath, "/"))
 	if nodes_path_err != nil {
 		return nodes_path_err
 	} else if nodes_path == nil || len(*nodes_path) == 0 {
 		return fmt.Errorf("node not found at path")
+	} else {
+		c.Cur = (*nodes_path)[len(*nodes_path)-1]
+		return nil
+	}
+}
+
+// List all paths to nodes that have the current nodes as their parent
+func (c *cmd_struct) Dir(db *sql.DB) ([]string, error) {
+	children, child_err := Nodes.GetChildren(db, c.Cur.Id)
+	if child_err != nil {
+		return []string{}, child_err
 	}
 
-	c.Cur = (*nodes_path)[len(*nodes_path)-1]
+	output := []string{}
+	for _, v := range children {
+		path, path_err := NodePaths.GetStrs(db, v)
+		if path_err != nil {
+			return []string{}, path_err
+		}
+		output = append(output, strings.Join(path, "/"))
+	}
+
+	slices.Sort(output)
+	return output, nil
+}
+
+// Create a new node with the current node as its parent
+func (c *cmd_struct) MakeNode(db *sql.DB, name string) (Node, error) {
+	name_string_id, name_err := Strings.GetId(db, name)
+	if name_err != nil {
+		return Node{}, name_err
+	}
+	new_node, node_err := Nodes.Create(db, c.Cur.Id, name_string_id, 0)
+	if node_err != nil {
+		return Node{}, node_err
+	}
+	return new_node, nil
+}
+
+// Make a copy of the current node into another node
+func (c *cmd_struct) CopyToNode(db *sql.DB, path string) error {
+	dest_parent_nodes, dest_err := NodePaths.GetStrNodes(db, strings.Split(path, "/"))
+	if dest_err != nil {
+		return dest_err
+	}
+
+	if dest_parent_nodes == nil || len(*dest_parent_nodes) == 0 {
+		return fmt.Errorf("dest path does not resolve to a new parent node")
+	}
+	new_parent_node := (*dest_parent_nodes)[len(*dest_parent_nodes)-1]
+
+	_, copy_err := Nodes.Copy(db, c.Cur.Id, new_parent_node.Id)
+	return copy_err
+}
+
+// Move the current node to a new parent node
+func (c *cmd_struct) MoveToNode(db *sql.DB, path string) error {
+	dest_parent_nodes, dest_err := NodePaths.GetStrNodes(db, strings.Split(path, "/"))
+	if dest_err != nil {
+		return dest_err
+	}
+
+	if dest_parent_nodes == nil || len(*dest_parent_nodes) == 0 {
+		return fmt.Errorf("dest path does not resolve to a new parent node")
+	}
+	new_parent_node := (*dest_parent_nodes)[len(*dest_parent_nodes)-1]
+
+	move_err := Nodes.Move(db, c.Cur.Id, new_parent_node.Id)
+	return move_err
+}
+
+// Remove the current node, changing the current node to its parent
+func (c *cmd_struct) RemoveNode(db *sql.DB) error {
+	cur_parent, cur_err := Nodes.Get(db, c.Cur.ParentId)
+	if cur_err != nil {
+		return cur_err
+	}
+
+	rem_err := Nodes.Remove(db, c.Cur.Id)
+	if rem_err != nil {
+		return rem_err
+	}
+
+	c.Cur = cur_parent
 	return nil
 }
 
-/* FORNOW
-std::vector<std::wstring> cmd::dir()
-{
-	std::vector<std::wstring> paths;
-
-	for (auto child : nodes::get_children(m_db, m_cur.id))
-		paths.emplace_back(nodes::get_path_str(m_db, child));
-	std::sort(paths.begin(), paths.end());
-	return paths;
-}
-
-void cmd::mknode(const std::wstring& newNodeName)
-{
-	nodes::create(m_db, m_cur.id, strings::get_id(m_db, newNodeName));
-}
-
-void cmd::copy(const std::wstring& newParentNode)
-{
-	nodes::copy(m_db, m_cur.id, get_node_from_path(newParentNode).id);
-}
-
-void cmd::move(const std::wstring& newParentNode)
-{
-	nodes::move(m_db, m_cur.id, get_node_from_path(newParentNode).id);
-}
-
-void cmd::remove()
-{
-	int64_t orig_id = m_cur.id;
-	auto parent = nodes::get(m_db, m_cur.parentId);
-	nodes::remove(m_db, orig_id);
-	m_cur = parent;
-}
-
-void cmd::rename(const std::wstring& newName)
-{
-	int64_t new_name_string_id = strings::get_id(m_db, newName);
-	nodes::rename(m_db, m_cur.id, new_name_string_id);
-	m_cur.nameStringId = new_name_string_id;
-}
-
-void cmd::set_prop(const std::vector<std::wstring>& cmds)
-{
-	if (cmds.size() < 2)
-		throw nldberr("Specify the name of the property to set");
-	else if (cmds.size() > 3)
-		throw nldberr("Specify the name and value of the property to set");
-	else if (cmds.size() == 2)
-		props::set(m_db, m_nodeItemTypeId, m_cur.id, strings::get_id(m_db, cmds[1]), -1);
-	else
-		props::set(m_db, m_nodeItemTypeId, m_cur.id, strings::get_id(m_db, cmds[1]), strings::get_id(m_db, cmds[2]));
-}
-
-void cmd::set_payload(const std::wstring& payload)
-{
-	nodes::set_payload(m_db, m_cur.id, payload);
-}
-
-std::wstring cmd::tell()
-{
-	std::wstringstream stream;
-
-	stream << L"ID:      " << m_cur.id << L"\n";
-	stream << L"Name:    " << strings::get_val(m_db, m_cur.nameStringId) << L"\n";
-	stream << L"Parent:  " << nodes::get_path_str(m_db, m_cur) << L"\n";
-	stream << L"Payload: " << nodes::get_payload(m_db, m_cur.id) << L"\n";
-
-	auto prop_string_ids = props::get(m_db, m_nodeItemTypeId, m_cur.id);
-	if (!prop_string_ids.empty())
-	{
-		stream << L"Properties:\n" << props::summarize(m_db, prop_string_ids) << L"\n";
+// Rename the current node to a new name
+func (c *cmd_struct) Rename(db *sql.DB, newName string) error {
+	new_name_string_id, name_err := Strings.GetId(db, newName)
+	if name_err != nil {
+		return name_err
 	}
-	else
-		stream << L"Properties: (none)" << L"\n";
-
-	auto out_links = links::get_out_links(m_db, m_cur.id);
-	if (!out_links.empty())
-	{
-		stream << L"Out Links:" << L"\n";
-		for (const auto& out_link : out_links)
-			stream << nodes::get_path_str(m_db, nodes::get(m_db, out_link.toNodeId)) << L"\n";
-	}
-	else
-		stream << L"Out Links: (none)" << L"\n";
-
-	auto in_links = links::get_in_links(m_db, m_cur.id);
-	if (!in_links.empty())
-	{
-		stream << L"In Links:" << L"\n";
-		for (const auto& in_link : in_links)
-			stream << nodes::get_path_str(m_db, nodes::get(m_db, in_link.fromNodeId)) << L"\n";
-	}
-	else
-		stream << L"In Links:  (none)" << L"\n";
-
-	return stream.str();
+	ren_err := Nodes.Rename(db, c.Cur.Id, new_name_string_id)
+	return ren_err
 }
 
-std::wstring cmd::search(const std::vector<std::wstring>& cmd)
-{
-	if (cmd.size() < 3)
-		throw nldberr("Pass in name / value pairs to search properties with");
-
-	if (((int)cmd.size() - 1) % 2)
-		throw nldberr("Pass in evenly matched name / value pairs to search with");
-
-	search_query query;
-	for (size_t s = 1; s + 1 < cmd.size(); s += 2)
-	{
-		query.m_criteria.push_back
-		(
-			search_criteria(strings::get_id(m_db, cmd[s]), cmd[s + 1])
-		);
+// Set a name-value property onto this node
+func (c *cmd_struct) SetProp(db *sql.DB, name string, value string) error {
+	name_string_id, name_err := Strings.GetId(db, name)
+	if name_err != nil {
+		return name_err
 	}
-	std::wstring output;
-	for (const auto& node : search::find_nodes(m_db, query))
-	{
-		if (!output.empty())
-			output += '\n';
-		output += nodes::get_path_str(m_db, node);
+	value_string_id, val_err := Strings.GetId(db, value)
+	if val_err != nil {
+		return val_err
 	}
-	return output;
+	var prop_err error
+	if name_string_id == 0 { // delete all values in node
+		prop_err = Props.Set(db, NodeItemTypeId, c.Cur.Id, -1, -1)
+	} else if value_string_id == 0 { // delete all values by name
+		prop_err = Props.Set(db, NodeItemTypeId, c.Cur.Id, name_string_id, -1)
+	} else { // name_string_id != && value_string_id != 0 { set prop value
+		prop_err = Props.Set(db, NodeItemTypeId, c.Cur.Id, name_string_id, value_string_id)
+	}
+	return prop_err
 }
 
-void cmd::link(const std::wstring& toPath)
-{
-	auto to_node = get_node_from_path(toPath);
-	links::create(m_db, m_cur.id, to_node.id);
+// Set the payload onto the current node
+func (c *cmd_struct) SetPayload(db *sql.DB, payload string) error {
+	pay_err := Nodes.SetPayload(db, c.Cur.Id, payload)
+	return pay_err
 }
 
-void cmd::unlink(const std::wstring& toPath)
-{
-	auto to_node = get_node_from_path(toPath);
-	links::remove(m_db, m_cur.id, to_node.id);
+// Describe in exquisite detail information about the current node
+func (c *cmd_struct) Tell(db *sql.DB) (string, error) {
+	output := fmt.Sprintf("ID: %d\n", c.Cur.Id)
+
+	name, name_err := Strings.GetVal(db, c.Cur.NameStringId)
+	if name_err != nil {
+		return "", name_err
+	}
+	output += fmt.Sprintf("Name: %s\n", name)
+
+	parent_node, parent_node_err := Nodes.Get(db, c.Cur.ParentId)
+	if parent_node_err != nil {
+		return "", parent_node_err
+	}
+	parent, parent_err := NodePaths.GetStrs(db, parent_node)
+	if parent_err != nil {
+		return "", parent_err
+	}
+	output += fmt.Sprintf("Parent: %s\n", strings.Join(parent, "/"))
+
+	payload, payload_err := Nodes.GetPayload(db, c.Cur.Id)
+	if payload_err != nil {
+		return "", payload_err
+	}
+	output += fmt.Sprintf("Payload: %s\n", payload)
+
+	props_map, props_err := Props.GetAll(db, NodeItemTypeId, c.Cur.Id)
+	if props_err != nil {
+		return "", props_err
+	}
+	if len(props_map) == 0 {
+		output += "Properties: (none)\n"
+	} else {
+		props_summary, prop_summ_err := Strings.Summarize(db, props_map)
+		if prop_summ_err != nil {
+			return "", prop_summ_err
+		}
+		output += fmt.Sprintf("Properties:\n%s\n", props_summary)
+	}
+
+	out_links, out_link_err := Links.GetOutLinks(db, c.Cur.Id)
+	if out_link_err != nil {
+		return "", out_link_err
+	}
+	if len(out_links) == 0 {
+		output += "Out Links: (none)"
+	} else {
+		output += fmt.Sprintf("Out Links: (%d)", len(out_links))
+		for _, link := range out_links {
+			to_node, to_node_err := Nodes.Get(db, link.ToNodeId)
+			if to_node_err != nil {
+				return "", to_node_err
+			}
+			to_node_path, to_none_path_err := NodePaths.GetStrs(db, to_node)
+			if to_none_path_err != nil {
+				return "", to_none_path_err
+			}
+			output += strings.Join(to_node_path, "/") + "\n"
+		}
+	}
+
+	in_links, in_link_err := Links.GetToLinks(db, c.Cur.Id)
+	if in_link_err != nil {
+		return "", in_link_err
+	}
+	if len(in_links) == 0 {
+		output += "From Links: (none)"
+	} else {
+		output += fmt.Sprintf("From Links: (%d)", len(in_links))
+		for _, link := range in_links {
+			in_node, in_node_err := Nodes.Get(db, link.FromNodeId)
+			if in_node_err != nil {
+				return "", in_node_err
+			}
+			in_node_path, in_none_path_err := NodePaths.GetStrs(db, in_node)
+			if in_none_path_err != nil {
+				return "", in_none_path_err
+			}
+			output += strings.Join(in_node_path, "/") + "\n"
+		}
+	}
+
+	return output, nil
 }
 
-std::vector<std::wstring> cmd::parse_cmds(const std::wstring& cmd)
-{
-	std::vector<std::wstring> output;
-	std::wstring collector;
+// Get search results for name-value search criteria
+func (c *cmd_struct) Search(db *sql.DB, name_values []string) (string, error) {
+	if len(name_values) < 2 {
+		return "", fmt.Errorf("pass in name / value pairs to search properties with")
+	}
 
-	bool in_quote = false;
+	if (len(name_values) % 2) != 0 {
+		return "", fmt.Errorf("pass in evenly matched name / value pairs to search with")
+	}
+	var query SearchQuery
+	for i := 0; i < len(name_values); i += 2 {
+		var criteria SearchCriteria
+		var name_string_err error
+		criteria.NameStringId, name_string_err = Strings.GetId(db, name_values[i])
+		if name_string_err != nil {
+			return "", name_string_err
+		}
+		criteria.ValueString = name_values[i+1]
+		query.Criteria = append(query.Criteria, criteria)
+	}
 
-	for (size_t s = 0; s < cmd.length(); ++s)
-	{
-		wchar_t c = cmd[s];
-		if (c == '\"')
-		{
-			if (!in_quote)
-				collector = trim(collector);
+	node_results, results_err := Search.FindNodes(db, &query)
+	if results_err != nil {
+		return "", results_err
+	}
 
-			if (in_quote || !collector.empty())
-			{
-				output.emplace_back(collector);
-				collector.clear();
+	var output strings.Builder
+	for _, cur_node := range node_results {
+		path, path_err := NodePaths.GetStrs(db, cur_node)
+		if path_err != nil {
+			return "", path_err
+		}
+		output.WriteString(strings.Join(path, "/"))
+		output.WriteString("\n")
+	}
+	return output.String(), nil
+}
+
+// Create a link between the current node and another node
+func (c *cmd_struct) Link(db *sql.DB, toPath string) error {
+	to_nodes, to_node_err := NodePaths.GetStrNodes(db, strings.Split(toPath, "/"))
+	if to_node_err != nil {
+		return to_node_err
+	}
+	to_node := (*to_nodes)[len(*to_nodes)-1]
+	Links.Create(db, c.Cur.Id, to_node.Id, NodeItemTypeId)
+	return nil
+}
+
+// Remove a link between this and another node
+func (c *cmd_struct) Unlink(db *sql.DB, toPath string) error {
+	to_nodes, to_node_err := NodePaths.GetStrNodes(db, strings.Split(toPath, "/"))
+	if to_node_err != nil {
+		return to_node_err
+	}
+	to_node := (*to_nodes)[len(*to_nodes)-1]
+	Links.RemoveFromTo(db, c.Cur.Id, to_node.Id, NodeItemTypeId)
+	return nil
+}
+
+// Given a command-line, handled quoted or unquoted strings as separate parameters
+// FORNOW - Handle two " in a row as a " in the output, not as terminating the current token
+func ParseCmds(cmd string) []string {
+	output := []string{}
+	collector := ""
+	in_quote := false
+	for _, c := range cmd {
+		if c == '"' {
+			if !in_quote {
+				collector = strings.TrimSpace(collector)
 			}
 
-			in_quote = !in_quote;
-			continue;
-		}
-
-		if (!in_quote && c == ' ')
-		{
-			collector = trim(collector);
-			if (!collector.empty())
-			{
-				output.emplace_back(collector);
-				collector.clear();
+			if in_quote || len(collector) > 0 {
+				output = append(output, collector)
+				collector = ""
 			}
-			continue;
+
+			in_quote = !in_quote
+			continue
 		}
 
-		collector += c;
+		if !in_quote && c == ' ' {
+			collector = strings.TrimSpace(collector)
+			if len(collector) > 0 {
+				output = append(output, collector)
+				collector = ""
+			}
+			continue
+		}
+
+		collector += string(c)
 	}
 
-	collector = trim(collector);
-	if (!collector.empty())
-	{
-		output.emplace_back(collector);
-		collector.clear();
+	collector = strings.TrimSpace(collector)
+	if len(collector) > 0 {
+		output = append(output, collector)
+		collector = ""
 	}
 
-	return output;
+	return output
 }
-
-std::wstring get_cur_path();
-node get_node_from_path(const std::wstring& path);
-
-void cd(const std::wstring& newPath);
-std::vector<std::wstring> dir();
-
-void mknode(const std::wstring& newNodeName);
-void copy(const std::wstring& newParent);
-void move(const std::wstring& newParent);
-void remove();
-void rename(const std::wstring& newName);
-
-void set_prop(const std::vector<std::wstring>& cmds);
-void set_payload(const std::wstring& payload);
-
-std::wstring tell();
-
-std::wstring search(const std::vector<std::wstring>& cmd);
-
-void link(const std::wstring& toPath);
-void unlink(const std::wstring& toPath);
-
-static std::vector<std::wstring> parse_cmds(const std::wstring& cmd);
-*/

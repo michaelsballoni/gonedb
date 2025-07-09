@@ -47,6 +47,21 @@ func (l *links) Remove(db *sql.DB, linkId int64) error {
 	}
 }
 
+// Remove a link by to/from IDs
+func (l *links) RemoveFromTo(db *sql.DB, fromNodeId int64, toNodeId int64, typeStringId int64) error {
+	result, err := db.Exec("DELETE FROM links WHERE from_node_id = ? AND to_node_id = ? AND type_string_id = ?", fromNodeId, toNodeId, typeStringId)
+	if err != nil {
+		return err
+	} else {
+		_, aff_err := result.RowsAffected()
+		if aff_err != nil {
+			return aff_err
+		} else {
+			return nil
+		}
+	}
+}
+
 // Get a link by ID
 func (l *links) Get(db *sql.DB, linkId int64) (Link, error) {
 	var output Link

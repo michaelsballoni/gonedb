@@ -63,6 +63,15 @@ func TestLinks(t *testing.T) {
 	err = gonedb.Links.Remove(db, link.Id)
 	AssertNoError(err)
 
+	link, err = gonedb.Links.Create(db, from_node.Id, to_node.Id, type_string_id)
+	AssertNoError(err)
+	AssertEqual(from_node.Id, link.FromNodeId)
+	AssertEqual(to_node.Id, link.ToNodeId)
+	AssertEqual(type_string_id, link.TypeStringId)
+
+	err = gonedb.Links.RemoveFromTo(db, link.FromNodeId, link.ToNodeId, type_string_id)
+	AssertNoError(err)
+
 	_, err = gonedb.Links.Get(db, link.Id)
 	AssertError(err)
 }
