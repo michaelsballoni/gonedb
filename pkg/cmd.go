@@ -15,6 +15,99 @@ func CreateCmd() cmd_struct {
 	return cmd_struct{}
 }
 
+func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
+	cmds := ParseCmds(cmd)
+	if len(cmds) == 0 {
+		return "", fmt.Errorf("no command given")
+	}
+
+	lower_cmd := strings.ToLower(cmds[0])
+	output := ""
+	var err error
+	switch lower_cmd {
+	case "mount":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("mount command takes one parameter, the directory path to mount")
+		}
+		err = c.Mount(db, cmds[1])
+	case "cd":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("cd command takes one parameter, the path to change to")
+		}
+		err = c.Cd(db, cmds[1])
+	case "dir":
+		var dir_strs []string
+		dir_strs, err = c.Dir(db)
+		if err == nil {
+			output = strings.Join(dir_strs, "\n")
+		}
+	case "make":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("make command takes one parameter, name of the node to create")
+		}
+		var made_node Node
+		made_node, err = c.MakeNode(db, cmds[1])
+		if err == nil {
+			var output_strs []string
+			output_strs, err = NodePaths.GetStrs(db, made_node)
+			if err == nil {
+				output = strings.Join(output_strs, "/")
+			}
+		}
+	case "copy":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("copy command takes one parameter, the node to copy the current node into")
+		}
+		err = c.CopyToNode(db, cmds[1])
+	case "move":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("move command takes one parameter, the node to move the current node under")
+		}
+		err = c.MoveToNode(db, cmds[1])
+	case "remove":
+		if len(cmds) != 1 {
+			return "", fmt.Errorf("remove takes no parameters; it removes the current node")
+		}
+		err = c.RemoveNode(db)
+	case "rename":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("rename command takes one parameter, the name to rename the current to")
+		}
+		err = c.Rename(db, cmds[1])
+	case "setprop":
+		if len(cmds) != 3 {
+			return "", fmt.Errorf("setprop command takes name and value paramters; use blank strings to erase existing properties of the matching name or all of the nodes's property")
+		}
+		err = c.SetProp(db, cmds[1], cmds[2])
+	case "setpayload":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("setpayload command takes the payload to set")
+		}
+		err = c.SetProp(db, cmds[1], cmds[2])
+	case "tell":
+		if len(cmds) != 1 {
+			return "", fmt.Errorf("tell describes the current tab and takes not parameters")
+		}
+		output, err = c.Tell(db)
+	case "search":
+		if ((len(cmds) + 1) % 2) != 0 {
+			return "", fmt.Errorf("search command takes an even number of parameters, name and value pairs to search for")
+		}
+		output, err = c.Search(db, cmds[1:])
+	case "link":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("link command takes one parameter, the node to link the current node to")
+		}
+		err = c.Link(db, cmds[1])
+	case "unlink":
+		if len(cmds) != 2 {
+			return "", fmt.Errorf("unlink command takes one parameter, the node to unlink the current node to")
+		}
+		err = c.Unlink(db, cmds[1])
+	}
+	return output, err
+}
+
 // Mount the given file system directory into the current node
 // adding all file system entries in the directories as nodes into gonedb
 func (c *cmd_struct) Mount(db *sql.DB, dirPath string) error {
@@ -298,8 +391,7 @@ func (c *cmd_struct) Unlink(db *sql.DB, toPath string) error {
 	return nil
 }
 
-// Given a command-line, handled quoted or unquoted strings as separate parameters
-// FORNOW - Handle two " in a row as a " in the output, not as terminating the current token
+// Given a command-line, handle quoted or unquoted strings as separate parameters
 func ParseCmds(cmd string) []string {
 	output := []string{}
 	collector := ""
