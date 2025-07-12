@@ -3,6 +3,7 @@ package gonedb
 import (
 	"database/sql"
 	"slices"
+	"strings"
 )
 
 type node_paths struct{}
@@ -87,4 +88,13 @@ func (np *node_paths) GetStrNodes(db *sql.DB, pathParts []string) (*[]Node, erro
 		cur_node_id = node_in_parent.Id
 	}
 	return &output, nil
+}
+
+func (np *node_paths) GetNodePath(db *sql.DB, node Node, seperator string) (string, error) {
+	strs, err := NodePaths.GetStrs(db, node)
+	if err != nil {
+		return "", err
+	} else {
+		return strings.Join(strs, seperator), nil
+	}
 }

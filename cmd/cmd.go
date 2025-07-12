@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -16,15 +18,14 @@ func file_exists(name string) bool {
 }
 
 func main() {
-	if len(os.Args) < 3 {
+	if len(os.Args) != 2 {
 		fmt.Println("Usage: <db file path>")
 		return
 	}
 
-	op := os.Args[1]
-
-	db_file := os.Args[2]
-	fmt.Println("db_file:", db_file, "file_exists:", file_exists(db_file))
+	db_file := os.Args[1]
+	db_existed := file_exists(db_file)
+	fmt.Println("db_file:", db_file, "file_exists:", db_existed)
 
 	fmt.Println("Opening database...")
 	db, err := sql.Open("sqlite3", db_file)
@@ -41,30 +42,40 @@ func main() {
 		return
 	}
 	fmt.Println("SQLite version:", version)
+	defer db.Close()
 
-	was_unknown := false
+	if !db_existed {
+		fmt.Println("Setting up gonedb schema...")
+		gonedb.Setup(db)
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	cmd := gonedb.CreateCmd()
 	for {
-		if op == "help" || was_unknown {
-			fmt.Println("Commands:")
-			fmt.Println("setup:", "Set up database for initial use.  You do this once.  Any info in the file is lost.")
-			fmt.Println("exit or quit:", "Quit this program")
-			fmt.Println("help:", "Display this help ;)")
-			was_unknown = false
+		prompt, err := cmd.GetPrompt(db)
+		if err != nil {
+			fmt.Printf("Getting prompt failed: %s\n", err)
+			os.Exit(1)
+			return
+		}
+		fmt.Printf("%s> ", prompt)
+
+		scanner.Scan()
+		line := strings.TrimSpace(scanner.Text())
+
+		if len(line) == 0 {
 			continue
 		}
 
-		if op == "setup" {
-			fmt.Println("Setting up database...")
-			gonedb.Setup(db)
-			fmt.Println("Database created!")
-			continue
-		}
-
-		if op == "exit" || op == "quit" {
+		if line == "quit" {
 			return
 		}
 
-		fmt.Println("Unknown op:", op)
-		was_unknown = true
+		output, cmd_err := cmd.ProcessCommand(db, line)
+		if cmd_err != nil {
+			fmt.Printf("ERROR: %s\n", cmd_err)
+		} else if len(output) > 0 {
+			fmt.Println(output)
+		}
 	}
 }

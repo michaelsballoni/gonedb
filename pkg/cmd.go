@@ -25,11 +25,28 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 	output := ""
 	var err error
 	switch lower_cmd {
-	case "mount":
+	default:
+		return "", fmt.Errorf("unrecognized command: %s", lower_cmd)
+	case "help":
+		output += "tell - dump all info about the current node\n"
+		output += "seed - seed the current node with a file system directory\n"
+		output += "cd - change the current node to another node\n"
+		output += "dir - list the nodes inside the current node\n"
+		output += "make - create a new node inside the current node\n"
+		output += "copy - make a copy of the current node in another node\n"
+		output += "move - move the current node inside another node\n"
+		output += "remove - remove the current node from the system\n"
+		output += "rename - rename the current node\n"
+		output += "setprop - set a searchable property onto the current node\n"
+		output += "setpayload - set the payload string onto the current node\n"
+		output += "link - link the current node to another node\n"
+		output += "unlink - remove the link from the current node to another\n"
+		output += "search - use properties to search for other nodes\n"
+	case "seed":
 		if len(cmds) != 2 {
-			return "", fmt.Errorf("mount command takes one parameter, the directory path to mount")
+			return "", fmt.Errorf("seed command takes one parameter, the file system directory path to seed the current node with")
 		}
-		err = c.Mount(db, cmds[1])
+		err = c.Seed(db, cmds[1])
 	case "cd":
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("cd command takes one parameter, the path to change to")
@@ -45,15 +62,7 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("make command takes one parameter, name of the node to create")
 		}
-		var made_node Node
-		made_node, err = c.MakeNode(db, cmds[1])
-		if err == nil {
-			var output_strs []string
-			output_strs, err = NodePaths.GetStrs(db, made_node)
-			if err == nil {
-				output = strings.Join(output_strs, "/")
-			}
-		}
+		err = c.MakeNode(db, cmds[1])
 	case "copy":
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("copy command takes one parameter, the node to copy the current node into")
@@ -83,7 +92,7 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("setpayload command takes the payload to set")
 		}
-		err = c.SetProp(db, cmds[1], cmds[2])
+		err = c.SetPayload(db, cmds[1])
 	case "tell":
 		if len(cmds) != 1 {
 			return "", fmt.Errorf("tell describes the current tab and takes not parameters")
@@ -108,9 +117,14 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 	return output, err
 }
 
-// Mount the given file system directory into the current node
-// adding all file system entries in the directories as nodes into gonedb
-func (c *cmd_struct) Mount(db *sql.DB, dirPath string) error {
+// Figure out the path to the current node
+func (c *cmd_struct) GetPrompt(db *sql.DB) (string, error) {
+	return NodePaths.GetNodePath(db, c.Cur, "/")
+}
+
+// Seed the current node with the given file system directory,
+// adding all file system entries in the directories as children of the current gonedb node
+func (c *cmd_struct) Seed(db *sql.DB, dirPath string) error {
 	load_err := Loader.Load(db, dirPath, c.Cur)
 	return load_err
 }
@@ -137,11 +151,11 @@ func (c *cmd_struct) Dir(db *sql.DB) ([]string, error) {
 
 	output := []string{}
 	for _, v := range children {
-		path, path_err := NodePaths.GetStrs(db, v)
+		path, path_err := NodePaths.GetNodePath(db, v, "/")
 		if path_err != nil {
 			return []string{}, path_err
 		}
-		output = append(output, strings.Join(path, "/"))
+		output = append(output, path)
 	}
 
 	slices.Sort(output)
@@ -149,16 +163,16 @@ func (c *cmd_struct) Dir(db *sql.DB) ([]string, error) {
 }
 
 // Create a new node with the current node as its parent
-func (c *cmd_struct) MakeNode(db *sql.DB, name string) (Node, error) {
+func (c *cmd_struct) MakeNode(db *sql.DB, name string) error {
 	name_string_id, name_err := Strings.GetId(db, name)
 	if name_err != nil {
-		return Node{}, name_err
+		return name_err
 	}
-	new_node, node_err := Nodes.Create(db, c.Cur.Id, name_string_id, 0)
+	_, node_err := Nodes.Create(db, c.Cur.Id, name_string_id, 0)
 	if node_err != nil {
-		return Node{}, node_err
+		return node_err
 	}
-	return new_node, nil
+	return nil
 }
 
 // Make a copy of the current node into another node
@@ -260,11 +274,11 @@ func (c *cmd_struct) Tell(db *sql.DB) (string, error) {
 	if parent_node_err != nil {
 		return "", parent_node_err
 	}
-	parent, parent_err := NodePaths.GetStrs(db, parent_node)
+	parent_path, parent_err := NodePaths.GetNodePath(db, parent_node, "/")
 	if parent_err != nil {
 		return "", parent_err
 	}
-	output += fmt.Sprintf("Parent: %s\n", strings.Join(parent, "/"))
+	output += fmt.Sprintf("Parent: %s\n", parent_path)
 
 	payload, payload_err := Nodes.GetPayload(db, c.Cur.Id)
 	if payload_err != nil {
@@ -291,19 +305,19 @@ func (c *cmd_struct) Tell(db *sql.DB) (string, error) {
 		return "", out_link_err
 	}
 	if len(out_links) == 0 {
-		output += "Out Links: (none)"
+		output += "Out Links: (none)\n"
 	} else {
-		output += fmt.Sprintf("Out Links: (%d)", len(out_links))
+		output += fmt.Sprintf("Out Links: (%d)\n", len(out_links))
 		for _, link := range out_links {
 			to_node, to_node_err := Nodes.Get(db, link.ToNodeId)
 			if to_node_err != nil {
 				return "", to_node_err
 			}
-			to_node_path, to_none_path_err := NodePaths.GetStrs(db, to_node)
+			to_node_path, to_none_path_err := NodePaths.GetNodePath(db, to_node, "/")
 			if to_none_path_err != nil {
 				return "", to_none_path_err
 			}
-			output += strings.Join(to_node_path, "/") + "\n"
+			output += to_node_path + "\n"
 		}
 	}
 
@@ -312,19 +326,19 @@ func (c *cmd_struct) Tell(db *sql.DB) (string, error) {
 		return "", in_link_err
 	}
 	if len(in_links) == 0 {
-		output += "From Links: (none)"
+		output += "In Links: (none)\n"
 	} else {
-		output += fmt.Sprintf("From Links: (%d)", len(in_links))
+		output += fmt.Sprintf("In Links: (%d)\n", len(in_links))
 		for _, link := range in_links {
 			in_node, in_node_err := Nodes.Get(db, link.FromNodeId)
 			if in_node_err != nil {
 				return "", in_node_err
 			}
-			in_node_path, in_none_path_err := NodePaths.GetStrs(db, in_node)
+			in_node_path, in_none_path_err := NodePaths.GetNodePath(db, in_node, "/")
 			if in_none_path_err != nil {
 				return "", in_none_path_err
 			}
-			output += strings.Join(in_node_path, "/") + "\n"
+			output += in_node_path + "\n"
 		}
 	}
 
@@ -359,11 +373,11 @@ func (c *cmd_struct) Search(db *sql.DB, name_values []string) (string, error) {
 
 	var output strings.Builder
 	for _, cur_node := range node_results {
-		path, path_err := NodePaths.GetStrs(db, cur_node)
+		path, path_err := NodePaths.GetNodePath(db, cur_node, "/")
 		if path_err != nil {
 			return "", path_err
 		}
-		output.WriteString(strings.Join(path, "/"))
+		output.WriteString(path)
 		output.WriteString("\n")
 	}
 	return output.String(), nil
