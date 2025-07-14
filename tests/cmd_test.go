@@ -23,12 +23,70 @@ func TestCmd(t *testing.T) {
 	AssertNoError(err)
 
 	cmd := gonedb.CreateCmd()
-	cmd.ProcessCommand(db, "make root")
-	cmd.ProcessCommand(db, "cd root")
-	cmd.ProcessCommand(db, "seed \""+playground_dir+"\"")
 
 	var output string
+
+	output, err = cmd.ProcessCommand(db, "make root")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "seed \""+playground_dir+"\"")
+	AssertNoError(err)
+	AssertEqual("", output)
+
 	output, err = cmd.ProcessCommand(db, "dir")
 	AssertNoError(err)
 	AssertEqual("root/dir1\nroot/dir2\n", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root/dir1")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "make deeper")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "dir")
+	AssertNoError(err)
+	AssertEqual("root/dir1/deeper\n", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "make new_dir1_parent")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root/dir1")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "copy root/new_dir1_parent")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "make dir3")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "dir")
+	AssertNoError(err)
+	AssertEqual("root/new_dir1_parent/dir1\nroot/new_dir1_parent/dir3\n", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent/dir1")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "dir")
+	AssertNoError(err)
+	AssertEqual("root/new_dir1_parent/dir1/deeper\n", output)
 }
