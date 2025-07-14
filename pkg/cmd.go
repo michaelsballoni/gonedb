@@ -53,10 +53,16 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		}
 		err = c.Cd(db, cmds[1])
 	case "dir":
+		if len(cmds) != 1 {
+			return "", fmt.Errorf("dir takes no parameters; it lists nodes inside the current node")
+		}
 		var dir_strs []string
 		dir_strs, err = c.Dir(db)
 		if err == nil {
 			output = strings.Join(dir_strs, "\n")
+			if len(output) > 0 {
+				output += "\n"
+			}
 		}
 	case "make":
 		if len(cmds) != 2 {

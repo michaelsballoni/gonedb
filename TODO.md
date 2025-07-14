@@ -1,7 +1,7 @@
 # Finish Port from C++
 ## Test cmd
-### Write cmd function that processes any command based on string
-### Write cmd unit test that sets up a playground in a temp dir and flexes all cmd
+## Write cmd unit test that sets up a playground in a temp dir and flexes all cmd
+### seed, make, and dir are done; pick it up with tell
 
 ## Finish POC Command Processor
 ### Write interactive command line processor, should be simple
