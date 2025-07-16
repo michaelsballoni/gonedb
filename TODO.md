@@ -3,6 +3,9 @@
 ## Write cmd unit test that sets up a playground in a temp dir and flexes all cmd
 ### seed, make, and dir are done; pick it up with tell
 
+# BUGs
+## Copy should copy props...and links?  Links are weird.
+
 ## Finish POC Command Processor
 ### Write interactive command line processor, should be simple
 

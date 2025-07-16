@@ -9,6 +9,7 @@ import (
 )
 
 func TestCmd(t *testing.T) {
+	// set up shop
 	db := GetTestDb("TestCmd.db")
 	defer db.Close()
 
@@ -26,6 +27,7 @@ func TestCmd(t *testing.T) {
 
 	var output string
 
+	// make the root node, seed with temp file system directory
 	output, err = cmd.ProcessCommand(db, "make root")
 	AssertNoError(err)
 	AssertEqual("", output)
@@ -38,6 +40,7 @@ func TestCmd(t *testing.T) {
 	AssertNoError(err)
 	AssertEqual("", output)
 
+	// go into dir1 and create deeper
 	output, err = cmd.ProcessCommand(db, "dir")
 	AssertNoError(err)
 	AssertEqual("root/dir1\nroot/dir2\n", output)
@@ -54,6 +57,7 @@ func TestCmd(t *testing.T) {
 	AssertNoError(err)
 	AssertEqual("root/dir1/deeper\n", output)
 
+	// go back to root and create new parent for copy of dir1
 	output, err = cmd.ProcessCommand(db, "cd root")
 	AssertNoError(err)
 	AssertEqual("", output)
@@ -74,6 +78,7 @@ func TestCmd(t *testing.T) {
 	AssertNoError(err)
 	AssertEqual("", output)
 
+	// make dir3 in new_dir1_parent next to dir1 copy
 	output, err = cmd.ProcessCommand(db, "make dir3")
 	AssertNoError(err)
 	AssertEqual("", output)
@@ -82,6 +87,7 @@ func TestCmd(t *testing.T) {
 	AssertNoError(err)
 	AssertEqual("root/new_dir1_parent/dir1\nroot/new_dir1_parent/dir3\n", output)
 
+	// ensure dir1 copy has copy of deeper
 	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent/dir1")
 	AssertNoError(err)
 	AssertEqual("", output)
@@ -89,4 +95,65 @@ func TestCmd(t *testing.T) {
 	output, err = cmd.ProcessCommand(db, "dir")
 	AssertNoError(err)
 	AssertEqual("root/new_dir1_parent/dir1/deeper\n", output)
+
+	// move new_dir1_parent's deeper node directly into new_dir1_parent
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent/dir1/deeper")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "move root/new_dir1_parent")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	// ensure deeper copy is now in new_dir1_parent
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "dir")
+	AssertNoError(err)
+	AssertEqual("root/new_dir1_parent/deeper\nroot/new_dir1_parent/dir1\nroot/new_dir1_parent/dir3\n", output)
+
+	// ensure copy of dir1 in new_dir1_parent has no children
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent/dir1")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "dir")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	// rename the copy of deeper
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent/deeper")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "rename about_to_remove_deeper")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "dir")
+	AssertNoError(err)
+	AssertEqual("root/new_dir1_parent/about_to_remove_deeper\nroot/new_dir1_parent/dir1\nroot/new_dir1_parent/dir3\n", output)
+
+	// remove the copy of deeper
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent/about_to_remove_deeper")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "remove")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "cd root/new_dir1_parent")
+	AssertNoError(err)
+	AssertEqual("", output)
+
+	output, err = cmd.ProcessCommand(db, "dir")
+	AssertNoError(err)
+	AssertEqual("root/new_dir1_parent/dir1\nroot/new_dir1_parent/dir3\n", output)
 }
