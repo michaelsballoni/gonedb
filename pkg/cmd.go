@@ -3,6 +3,7 @@ package gonedb
 import (
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"slices"
 	"strings"
 )
@@ -42,6 +43,7 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		output += "link - link the current node to another node\n"
 		output += "unlink - remove the link from the current node to another\n"
 		output += "search - use properties to search for other nodes\n"
+		output += "scramblelinks - randomly link nodes throughout the system\n"
 	case "seed":
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("seed command takes one parameter, the file system directory path to seed the current node with")
@@ -119,6 +121,12 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 			return "", fmt.Errorf("unlink command takes one parameter, the node to unlink the current node to")
 		}
 		err = c.Unlink(db, cmds[1])
+	case "scramblelinks":
+		if len(cmds) != 1 {
+			return "", fmt.Errorf("scramblelinks command takes no parameter, it works across all nodes")
+		}
+		created_count, scramble_err := c.ScrambleLinks(db)
+		return fmt.Sprintf("%d", created_count), scramble_err
 	}
 	return output, err
 }
@@ -416,6 +424,55 @@ func (c *cmd_struct) Unlink(db *sql.DB, toPath string) error {
 	to_node := (*to_nodes)[len(*to_nodes)-1]
 	Links.RemoveFromTo(db, c.Cur.Id, to_node.Id, NodeItemTypeId)
 	return nil
+}
+
+// Scramble links among all nodes
+func (c *cmd_struct) ScrambleLinks(db *sql.DB) (int64, error) {
+	// get all node ids
+	rows, err := db.Query("SELECT id FROM nodes")
+	if err != nil {
+		return -1, err
+	}
+	ids := []int64{}
+	var cur_id int64
+	for rows.Next() {
+		err := rows.Scan(&cur_id)
+		if err != nil {
+			return -1, err
+		}
+		ids = append(ids, cur_id)
+	}
+
+	// link half
+	ids_len := len(ids)
+	half := ids_len / 2
+	if half < 2 {
+		return -1, fmt.Errorf("need at least two nodes to scramble links")
+	}
+
+	// walk them in random order linking them to another at a random order
+	seen_ids := map[int64]bool{}
+	created := int64(0)
+	for i := 1; i <= half; i++ {
+		from := ids[rand.Int()%ids_len]
+		if seen_ids[from] {
+			continue
+		}
+		seen_ids[from] = true
+
+		to := ids[rand.Int()%ids_len]
+		if from == to {
+			continue
+		}
+
+		_, err = Links.Create(db, from, to, 0)
+		if err != nil {
+			return -1, err
+		}
+
+		created += 1
+	}
+	return created, nil
 }
 
 // Given a command-line, handle quoted or unquoted strings as separate parameters

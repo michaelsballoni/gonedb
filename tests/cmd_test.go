@@ -3,6 +3,7 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -219,4 +220,9 @@ func TestCmd(t *testing.T) {
 	AssertTrue(strings.Contains(output, "\nProperties:\nprop1 value1\n"))
 	AssertTrue(strings.Contains(output, "\nOut Links: (1)\nroot/dir1\n"))
 	AssertTrue(strings.Contains(output, "\nIn Links: (none)\n"))
+
+	output, err = cmd.ProcessCommand(db, "scramblelinks")
+	AssertNoError(err)
+	_, atoi_err := strconv.Atoi(output)
+	AssertNoError(atoi_err)
 }

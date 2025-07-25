@@ -26,10 +26,14 @@ func (l *links) Create(db *sql.DB, fromNodeId int64, toNodeId int64, typeStringI
 		typeStringId)
 	err := row.Scan(&new_id)
 	if err != nil {
-		return Link{}, err
-	} else {
-		return Link{Id: new_id, FromNodeId: fromNodeId, ToNodeId: toNodeId, TypeStringId: typeStringId}, nil
+		row := db.QueryRow("SELECT id FROM links where from_node_id = ?, to_node_id = ?, type_string_id = ?",
+			fromNodeId, toNodeId, typeStringId)
+		err := row.Scan(&new_id)
+		if err != nil {
+			return Link{}, err
+		}
 	}
+	return Link{Id: new_id, FromNodeId: fromNodeId, ToNodeId: toNodeId, TypeStringId: typeStringId}, nil
 }
 
 // Remove a link by ID
