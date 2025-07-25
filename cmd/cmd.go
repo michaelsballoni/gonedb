@@ -34,6 +34,8 @@ func main() {
 		os.Exit(1)
 		return
 	}
+	defer db.Close()
+
 	var version string
 	err = db.QueryRow("SELECT SQLITE_VERSION()").Scan(&version)
 	if err != nil {
@@ -42,11 +44,11 @@ func main() {
 		return
 	}
 	fmt.Println("SQLite version:", version)
-	defer db.Close()
 
 	if !db_existed {
-		fmt.Println("Setting up gonedb schema...")
+		fmt.Printf("Setting up gonedb schema...")
 		gonedb.Setup(db)
+		fmt.Println("done!")
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -68,6 +70,7 @@ func main() {
 		}
 
 		if line == "quit" {
+			os.Exit(0)
 			return
 		}
 
