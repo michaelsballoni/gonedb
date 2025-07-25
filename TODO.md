@@ -1,12 +1,9 @@
 # Finish Port from C++
 
-# BUGs
-## Core: Copy should copy props...and not links
-
 ## Finish POC Command Processor
 ### Write interactive command line processor
 
-# Port cloud from C++, make sense of the generation additions
+# Port cloud from C++, make sense of the additions made at each generation
 
 # Move Forward
 ## Rethink cloud library

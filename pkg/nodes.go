@@ -115,6 +115,15 @@ func doCopy(db *sql.DB, srcNode Node, newParentNodeId int64, seenNodeIds map[int
 		return -1, new_err
 	}
 
+	prop_sql := fmt.Sprintf(
+		"INSERT INTO props (itemtypeid, itemid, namestrid, valstrid) "+
+			"SELECT %d, %d, namestrid, valstrid FROM props WHERE itemtypeid = %d AND itemid = %d",
+		NodeItemTypeId, new_node.Id, NodeItemTypeId, srcNode.Id)
+	_, prop_err := db.Exec(prop_sql)
+	if prop_err != nil {
+		return -1, prop_err
+	}
+
 	child_nodes, cur_err := Nodes.GetChildren(db, srcNode.Id)
 	if cur_err != nil {
 		return -1, cur_err
@@ -231,6 +240,12 @@ func (n *nodes) Remove(db *sql.DB, nodeId int64) error {
 		if del_count != int64(len(child_node_ids)) {
 			return fmt.Errorf("Not all child nodes removed")
 		}
+
+		_, prop_err := db.Exec("DELETE FROM props WHERE itemtypeid = " + fmt.Sprintf("%d", NodeItemTypeId) + " AND itemid IN (" + ids + ")")
+		if prop_err != nil {
+			return prop_err
+		}
+
 		NodeCache.InvalidateN(child_node_ids)
 	}
 

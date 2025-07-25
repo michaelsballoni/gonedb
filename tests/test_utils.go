@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -11,21 +12,19 @@ import (
 )
 
 func GetTestDb(name string) *sql.DB {
-	fmt.Printf("GetTestDb: %s\n", name)
-	tmp_file, tmp_err := os.CreateTemp(os.TempDir(), name)
-	if tmp_err != nil {
-		panic(fmt.Sprintf("GetTestDb fails CreateTemp: %v", tmp_err))
-	}
-	tmp_file_name := tmp_file.Name()
-	fmt.Printf("GetTestDb: %s: %s\n", name, tmp_file_name)
+	db_file_path := filepath.Join(os.TempDir(), name)
+	fmt.Printf("GetTestDb: %s - %s\n", name, db_file_path)
 
-	os.Remove(tmp_file_name)
-	db, err := sql.Open("sqlite3", tmp_file_name)
+	os.Remove(db_file_path)
+
+	db, err := sql.Open("sqlite3", db_file_path)
 	if err != nil {
 		panic(fmt.Sprintf("GetTestDb fails Open: %v", err))
 	}
+
 	gonedb.Setup(db)
 	gonedb.Strings.FlushCaches()
+
 	return db
 }
 

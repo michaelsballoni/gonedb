@@ -57,11 +57,9 @@ func TestGetParentsNodeIds(t *testing.T) {
 	AssertEqual(1, len(child_parent_nodes))
 	AssertEqual(node2.ParentId, child_parent_nodes[0])
 
-	/* FORNOW
-	child_node_path, err12 := gonedb.Nodes.GetNodePath(db, node2.Id)
-	AssertNoError(err12)
-	AssertEqual(fmt.Sprintf("/%d/%d/", node1.Id, node2.Id), child_node_path)
-	*/
+	child_node_path, child_node_path_err := gonedb.NodePaths.GetNodePath(db, node2, "/")
+	AssertNoError(child_node_path_err)
+	AssertEqual("foobar/bletmonkey", child_node_path)
 }
 
 func TestNodeCopy(t *testing.T) {
@@ -93,10 +91,10 @@ func TestNodeCopy(t *testing.T) {
 	got_copy_node, got_copy_err := gonedb.Nodes.Get(db, copy_node_id)
 	AssertNoError(got_copy_err)
 	AssertEqual(copy_node_id, got_copy_node.Id)
-	AssertEqual(new_root_node.Id, got_copy_node.ParentId) // null
+	AssertEqual(new_root_node.Id, got_copy_node.ParentId)
 	AssertEqual(child_node.NameStringId, got_copy_node.NameStringId)
-	AssertEqual(child_node.TypeStringId, got_copy_node.TypeStringId)
 
+	AssertEqual(child_node.TypeStringId, got_copy_node.TypeStringId)
 	// get the new grandchildren
 	copy_grandchildren, copy_grandchildren_err := gonedb.Nodes.GetChildren(db, copy_node_id)
 	AssertNoError(copy_grandchildren_err)
@@ -110,6 +108,19 @@ func TestNodeCopy(t *testing.T) {
 	AssertEqual(copy_node_id, copy_grandchildren[1].ParentId)
 	AssertEqual(grandchild_node2.NameStringId, copy_grandchildren[1].NameStringId)
 	AssertEqual(grandchild_node2.TypeStringId, copy_grandchildren[1].TypeStringId)
+
+	// set props on a grandchild, copy, and compare
+	set_prop_err := gonedb.Props.Set(db, gonedb.NodeItemTypeId, grandchild_node1.Id, GetTestStringId(db, "prop1"), GetTestStringId(db, "val1"))
+	AssertNoError(set_prop_err)
+	set_prop_err = gonedb.Props.Set(db, gonedb.NodeItemTypeId, grandchild_node1.Id, GetTestStringId(db, "prop2"), GetTestStringId(db, "val2"))
+	AssertNoError(set_prop_err)
+	grandchild_node1_copy_node_id, grandchild_copy_err := gonedb.Nodes.Copy(db, grandchild_node1.Id, grandchild_node2.Id)
+	AssertNoError(grandchild_copy_err)
+	props_map, get_prop_err := gonedb.Props.GetAll(db, gonedb.NodeItemTypeId, grandchild_node1_copy_node_id)
+	AssertNoError(get_prop_err)
+	summary, sum_err := gonedb.Strings.Summarize(db, props_map)
+	AssertNoError(sum_err)
+	AssertEqual("prop1 val1\nprop2 val2", summary)
 }
 
 func TestNodeMove(t *testing.T) {
