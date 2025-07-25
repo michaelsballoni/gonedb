@@ -236,6 +236,9 @@ func (c *cmd_struct) Rename(db *sql.DB, newName string) error {
 		return name_err
 	}
 	ren_err := Nodes.Rename(db, c.Cur.Id, new_name_string_id)
+	if ren_err == nil {
+		c.Cur.NameStringId = new_name_string_id
+	}
 	return ren_err
 }
 

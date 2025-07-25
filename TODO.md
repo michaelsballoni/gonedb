@@ -1,13 +1,12 @@
 # Finish Port from C++
-## Test cmd
-## Write cmd unit test that sets up a playground in a temp dir and flexes all cmd
-### seed, make, and dir are done; pick it up with tell
 
 # BUGs
-## Copy should copy props...and links?  Links are weird.
+## Core: Copy should copy props...and not links
 
 ## Finish POC Command Processor
-### Write interactive command line processor, should be simple
+### Write interactive command line processor
+
+# Port cloud from C++, make sense of the generation additions
 
 # Move Forward
 ## Rethink cloud library
