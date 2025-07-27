@@ -9,7 +9,8 @@ import (
 )
 
 type cmd_struct struct {
-	Cur Node
+	Cur      Node
+	CurCloud Cloud
 }
 
 func CreateCmd() cmd_struct {
@@ -44,6 +45,8 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		output += "unlink - remove the link from the current node to another\n"
 		output += "search - use properties to search for other nodes\n"
 		output += "scramblelinks - randomly link nodes throughout the system\n"
+		output += "bloomcloud - bloom a cloud of links from current node\n"
+		output += "dropcloud - delete database records for the current cloud\n"
 	case "seed":
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("seed command takes one parameter, the file system directory path to seed the current node with")
@@ -127,6 +130,16 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		}
 		created_count, scramble_err := c.ScrambleLinks(db)
 		return fmt.Sprintf("%d", created_count), scramble_err
+	case "bloomcloud":
+		if len(cmds) != 1 {
+			return "", fmt.Errorf("bloomcloud takes no arguments, it works on the current node")
+		}
+		output, err = c.BloomCloud(db)
+	case "dropcloud":
+		if len(cmds) != 1 {
+			return "", fmt.Errorf("popcloud takes no arguments, it works on the current node")
+		}
+		err = c.DropCloud(db)
 	}
 	return output, err
 }
@@ -473,6 +486,54 @@ func (c *cmd_struct) ScrambleLinks(db *sql.DB) (int64, error) {
 		created += 1
 	}
 	return created, nil
+}
+
+// Do the cloud thing
+func (c *cmd_struct) BloomCloud(db *sql.DB) (string, error) {
+	cur_cloud, err := Clouds.GetCloud("cmd", c.Cur.Id)
+	if err != nil {
+		return "", err
+	}
+	c.CurCloud = cur_cloud
+
+	err = c.CurCloud.Init(db)
+	if err != nil {
+		return "", err
+	}
+
+	affected, seed_err := c.CurCloud.Seed(db)
+	if seed_err != nil {
+		return "", seed_err
+	}
+	if affected <= 0 {
+		return "", fmt.Errorf("no links found in initial seed")
+	}
+
+	var builder strings.Builder
+	for i := 1; i <= 3; i += 1 {
+		_, exp_err := c.CurCloud.Expand(db)
+		if exp_err != nil {
+			return "", exp_err
+		}
+
+		links, links_err := c.CurCloud.GetLinks(db, int64(i), int64(i))
+		if links_err != nil {
+			return "", links_err
+		}
+
+		builder.WriteString(fmt.Sprintf("Gen: %d - Count: %d\n", i, len(links)))
+		for _, link := range links {
+			builder.WriteString(fmt.Sprintln(link.Id, link.FromNodeId, link.ToNodeId, link.TypeStringId, "\n"))
+		}
+		builder.WriteString("\n")
+	}
+	return builder.String(), nil
+}
+
+// Do the cloud thing
+func (c *cmd_struct) DropCloud(db *sql.DB) error {
+	err := c.CurCloud.Drop(db)
+	return err
 }
 
 // Given a command-line, handle quoted or unquoted strings as separate parameters
