@@ -128,8 +128,7 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		if len(cmds) != 1 {
 			return "", fmt.Errorf("scramblelinks command takes no parameter, it works across all nodes")
 		}
-		created_count, scramble_err := c.ScrambleLinks(db)
-		return fmt.Sprintf("%d", created_count), scramble_err
+		output, err = c.ScrambleLinks(db)
 	case "bloomcloud":
 		if len(cmds) != 1 {
 			return "", fmt.Errorf("bloomcloud takes no arguments, it works on the current node")
@@ -137,7 +136,7 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		output, err = c.BloomCloud(db)
 	case "dropcloud":
 		if len(cmds) != 1 {
-			return "", fmt.Errorf("popcloud takes no arguments, it works on the current node")
+			return "", fmt.Errorf("dropcloud takes no arguments, it works on the current node")
 		}
 		err = c.DropCloud(db)
 	}
@@ -440,52 +439,38 @@ func (c *cmd_struct) Unlink(db *sql.DB, toPath string) error {
 }
 
 // Scramble links among all nodes
-func (c *cmd_struct) ScrambleLinks(db *sql.DB) (int64, error) {
+func (c *cmd_struct) ScrambleLinks(db *sql.DB) (string, error) {
 	// get all node ids
 	rows, err := db.Query("SELECT id FROM nodes")
 	if err != nil {
-		return -1, err
+		return "", err
 	}
 	ids := []int64{}
 	var cur_id int64
 	for rows.Next() {
 		err := rows.Scan(&cur_id)
 		if err != nil {
-			return -1, err
+			return "", err
 		}
 		ids = append(ids, cur_id)
 	}
 
-	// link half
-	ids_len := len(ids)
-	half := ids_len / 2
-	if half < 2 {
-		return -1, fmt.Errorf("need at least two nodes to scramble links")
-	}
-
 	// walk them in random order linking them to another at a random order
-	seen_ids := map[int64]bool{}
+	ids_len := len(ids)
 	created := int64(0)
-	for i := 1; i <= half; i++ {
+	for i := 1; i <= ids_len; i++ {
 		from := ids[rand.Int()%ids_len]
-		if seen_ids[from] {
-			continue
-		}
-		seen_ids[from] = true
-
 		to := ids[rand.Int()%ids_len]
-		if from == to {
+		if from == to || from == 0 || to == 0 {
 			continue
 		}
-
 		_, err = Links.Create(db, from, to, 0)
 		if err != nil {
-			return -1, err
+			return "", err
 		}
-
 		created += 1
 	}
-	return created, nil
+	return fmt.Sprintf("links created: %d", created), nil
 }
 
 // Do the cloud thing
@@ -495,6 +480,10 @@ func (c *cmd_struct) BloomCloud(db *sql.DB) (string, error) {
 		return "", err
 	}
 	c.CurCloud = cur_cloud
+	err = cur_cloud.Drop(db)
+	if err != nil {
+		return "", err
+	}
 
 	err = c.CurCloud.Init(db)
 	if err != nil {
@@ -510,20 +499,25 @@ func (c *cmd_struct) BloomCloud(db *sql.DB) (string, error) {
 	}
 
 	var builder strings.Builder
-	for i := 1; i <= 3; i += 1 {
-		_, exp_err := c.CurCloud.Expand(db)
+	for gen := 1; gen <= 3; gen += 1 {
+		builder.WriteString(fmt.Sprintf("Gen: %d\n", gen))
+		added, exp_err := c.CurCloud.Expand(db)
+		builder.WriteString(fmt.Sprintf("Gen: %d - Added: %d\n", gen, added))
+		if added <= 0 {
+			break
+		}
 		if exp_err != nil {
 			return "", exp_err
 		}
 
-		links, links_err := c.CurCloud.GetLinks(db, int64(i), int64(i))
+		links, links_err := c.CurCloud.GetLinks(db, int64(gen), int64(gen))
 		if links_err != nil {
 			return "", links_err
 		}
 
-		builder.WriteString(fmt.Sprintf("Gen: %d - Count: %d\n", i, len(links)))
+		builder.WriteString(fmt.Sprintf("Gen: %d - Count: %d\n", gen, len(links)))
 		for _, link := range links {
-			builder.WriteString(fmt.Sprintln(link.Id, link.FromNodeId, link.ToNodeId, link.TypeStringId, "\n"))
+			builder.WriteString(fmt.Sprintln(link.Id, link.FromNodeId, link.ToNodeId, link.TypeStringId))
 		}
 		builder.WriteString("\n")
 	}

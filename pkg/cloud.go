@@ -29,7 +29,7 @@ func (c *clouds) GetCloud(cloudName string, seedNodeId int64) (Cloud, error) {
 	if !name_ok {
 		return Cloud{}, fmt.Errorf("invalid cloud name, must match ^[/w]+$")
 	}
-	return Cloud{m_seedNodeId: seedNodeId, m_tableName: fmt.Sprintf("cloudlinks_%d_%s", seedNodeId, cloudName)}, nil
+	return Cloud{m_cloudName: cloudName, m_seedNodeId: seedNodeId, m_tableName: fmt.Sprintf("cloudlinks_%d_%s", seedNodeId, cloudName)}, nil
 }
 
 // Drop the database out of the database
@@ -126,7 +126,7 @@ func (c *Cloud) GaxMaxGeneration(db *sql.DB) (int64, error) {
 }
 
 // Expand this cloud out when generation
-// Returns number of links added, or error
+// Returns number of links added
 func (c *Cloud) Expand(db *sql.DB) (int64, error) {
 	// settle on the current gen
 	max_gen, err := c.GaxMaxGeneration(db)

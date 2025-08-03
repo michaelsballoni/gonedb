@@ -1,11 +1,14 @@
 package test
 
 import (
+	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 
 	gonedb "github.com/michaelsballoni/gonedb/pkg"
 )
@@ -223,6 +226,44 @@ func TestCmd(t *testing.T) {
 
 	output, err = cmd.ProcessCommand(db, "scramblelinks")
 	AssertNoError(err)
-	_, atoi_err := strconv.Atoi(output)
+	count_str := strings.Replace(output, "links created: ", "", 1)
+	count, atoi_err := strconv.Atoi(count_str)
 	AssertNoError(atoi_err)
+	AssertTrue(int(count) > 0)
+
+	output, err = cmd.BloomCloud(db)
+	AssertNoError(err)
+	fmt.Printf("BLOOM CLOUD OUTPUT:\n%s\n", output)
+	bloom_scanner := bufio.NewScanner(strings.NewReader(output))
+	for gen := 1; gen <= 3; gen += 1 {
+		var cur_line string
+
+		for {
+			bloom_scanner.Scan()
+			cur_line = bloom_scanner.Text()
+			if len(cur_line) > 0 && !unicode.IsDigit(rune(cur_line[0])) {
+				break
+			}
+		}
+		AssertEqual(fmt.Sprintf("Gen: %d", gen), cur_line)
+
+		bloom_scanner.Scan()
+		cur_line = bloom_scanner.Text()
+		line_prefix := fmt.Sprintf("Gen: %d - Added: ", gen)
+		add_prefix := strings.Index(cur_line, line_prefix)
+		AssertEqual(0, add_prefix)
+		added_str := cur_line[len(line_prefix):]
+		added_count, err := strconv.Atoi(added_str)
+		AssertNoError(err)
+		if added_count <= 0 {
+			break
+		}
+
+		bloom_scanner.Scan()
+		cur_line = bloom_scanner.Text()
+		AssertEqual(0, strings.Index(cur_line, fmt.Sprintf("Gen: %d - Count: ", gen)))
+	}
+
+	err = cmd.DropCloud(db)
+	AssertNoError(err)
 }
