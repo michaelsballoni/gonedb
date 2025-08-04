@@ -45,6 +45,19 @@ func main() {
 	}
 	fmt.Println("SQLite version:", version)
 
+	_, err = db.Exec("PRAGMA journal_mode = WAL")
+	if err != nil {
+		fmt.Printf("PRAGMA journal_mode = WAL failed: %s\n", err)
+		os.Exit(1)
+		return
+	}
+	_, err = db.Exec("PRAGMA synchronous = NORMAL")
+	if err != nil {
+		fmt.Printf("PRAGMA synchronous = NORMAL failed: %s\n", err)
+		os.Exit(1)
+		return
+	}
+
 	if !db_existed {
 		fmt.Printf("Setting up gonedb schema...")
 		gonedb.Setup(db)

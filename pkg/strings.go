@@ -46,6 +46,39 @@ func (s *nlstrings) GetId(db *sql.DB, str string) (int64, error) {
 	}
 }
 
+// Given a string value, ensure it's in the DB and return the ID for it
+func (s *nlstrings) GetIdTx(tx *sql.Tx, str string) (int64, error) {
+	if len(str) == 0 {
+		return 0, nil
+	}
+
+	string_id := get_id_from_cache(str)
+	if string_id >= 0 {
+		return string_id, nil
+	}
+
+	row := tx.QueryRow("SELECT id FROM strings WHERE val = ?", str)
+	err := row.Scan(&string_id)
+	if err == nil {
+		put_id_in_cache(str, string_id)
+		return string_id, nil
+	}
+
+	_, exec_err := tx.Exec("INSERT INTO strings (val) VALUES (?) ON CONFLICT(val) DO NOTHING", str)
+	if exec_err != nil {
+		return -1, exec_err
+	}
+
+	row = tx.QueryRow("SELECT id FROM strings WHERE val = ?", str)
+	err = row.Scan(&string_id)
+	if err == nil {
+		put_id_in_cache(str, string_id)
+		return string_id, nil
+	} else {
+		return -1, exec_err
+	}
+}
+
 // Given a database ID, try to find the correspdonding string value
 func (s *nlstrings) GetVal(db *sql.DB, id int64) (string, error) {
 	if id == 0 {

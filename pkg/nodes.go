@@ -68,10 +68,35 @@ func (n *nodes) Create(db *sql.DB, parentNodeId int64, nameStringId int64, typeS
 	}
 }
 
+// Create a new node using a transaction
+func (n *nodes) CreateTx(tx *sql.Tx, parentNodeId int64, nameStringId int64, typeStringId int64) (Node, error) {
+	parent_node_ids, err := n.GetParentsNodeIdsTx(tx, parentNodeId)
+	if err != nil {
+		return Node{}, err
+	} else if parentNodeId != 0 { // append the parent to its path to make our own
+		parent_node_ids = append(parent_node_ids, parentNodeId)
+	}
+
+	parents_str := NodeUtils.IdsToParentsStr(parent_node_ids)
+
+	var new_id int64
+	row := tx.QueryRow("INSERT INTO nodes (parent_id, name_string_id, type_string_id, parents) VALUES (?, ?, ?, ?) RETURNING id",
+		parentNodeId,
+		nameStringId,
+		typeStringId,
+		parents_str)
+	err = row.Scan(&new_id)
+	if err != nil {
+		return Node{}, err
+	} else {
+		return Node{Id: new_id, ParentId: parentNodeId, NameStringId: nameStringId, TypeStringId: typeStringId}, nil
+	}
+}
+
 // Copy a node to another parent node, deep copy.
 func (n *nodes) Copy(db *sql.DB, nodeId int64, newParentNodeId int64) (int64, error) {
 	if nodeId == newParentNodeId {
-		return 0, fmt.Errorf("Cannot copy node into itself")
+		return 0, fmt.Errorf("cannot copy node into itself")
 	}
 
 	// You can't copy this into a child of this
@@ -92,7 +117,7 @@ func (n *nodes) Copy(db *sql.DB, nodeId int64, newParentNodeId int64) (int64, er
 				return 0, scan_err
 			}
 			if cur_id == newParentNodeId {
-				return 0, fmt.Errorf("Cannot copy node into child of source")
+				return 0, fmt.Errorf("cannot copy node into child of source")
 			}
 		}
 	}
@@ -130,7 +155,7 @@ func doCopy(db *sql.DB, srcNode Node, newParentNodeId int64, seenNodeIds map[int
 	}
 	for _, child_node := range child_nodes {
 		if seenNodeIds[child_node.Id] {
-			return -1, fmt.Errorf("Cannot copy a node into its children")
+			return -1, fmt.Errorf("cannot copy a node into its children")
 		} else {
 			seenNodeIds[child_node.Id] = true
 		}
@@ -146,7 +171,7 @@ func doCopy(db *sql.DB, srcNode Node, newParentNodeId int64, seenNodeIds map[int
 func (n *nodes) Move(db *sql.DB, nodeId int64, newParentNodeId int64) error {
 	// check inputs
 	if nodeId == 0 {
-		return fmt.Errorf("Cannot move null node")
+		return fmt.Errorf("cannot move null node")
 	}
 
 	// collect all children node IDs
@@ -217,7 +242,7 @@ func (n *nodes) Move(db *sql.DB, nodeId int64, newParentNodeId int64) error {
 func (n *nodes) Remove(db *sql.DB, nodeId int64) error {
 	// check inputs
 	if nodeId == 0 {
-		return fmt.Errorf("Cannot remove null node")
+		return fmt.Errorf("cannot remove null node")
 	}
 
 	// collect all children node IDs
@@ -238,7 +263,7 @@ func (n *nodes) Remove(db *sql.DB, nodeId int64) error {
 		}
 		del_count, _ := del_result.RowsAffected()
 		if del_count != int64(len(child_node_ids)) {
-			return fmt.Errorf("Not all child nodes removed")
+			return fmt.Errorf("not all child nodes removed")
 		}
 
 		_, prop_err := db.Exec("DELETE FROM props WHERE itemtypeid = " + fmt.Sprintf("%d", NodeItemTypeId) + " AND itemid IN (" + ids + ")")
@@ -267,7 +292,7 @@ func (n *nodes) Remove(db *sql.DB, nodeId int64) error {
 // Rename a node, ensuring an existing node in the same parent does not exist
 func (n *nodes) Rename(db *sql.DB, nodeId int64, newNameStringId int64) error {
 	if nodeId == 0 {
-		return fmt.Errorf("Cannot rename null node")
+		return fmt.Errorf("cannot rename null node")
 	}
 
 	parent_node, parent_err := n.GetParent(db, nodeId)
@@ -315,7 +340,7 @@ func (n *nodes) SetPayload(db *sql.DB, nodeId int64, payload string) error {
 		return affected_err
 	}
 	if affected != 1 {
-		return fmt.Errorf("Row not affected")
+		return fmt.Errorf("row not affected")
 	} else {
 		return nil
 	}
@@ -340,6 +365,17 @@ func (n *nodes) GetNodeInParent(db *sql.DB, parentNodeId int64, nameStringId int
 	return node, err
 }
 
+// Get the node in a parent by anem
+func (n *nodes) GetNodeInParentTx(tx *sql.Tx, parentNodeId int64, nameStringId int64) (Node, error) {
+	var node Node
+	node.Id = -1
+	node.ParentId = parentNodeId
+	node.NameStringId = nameStringId
+	row := tx.QueryRow("SELECT id, type_string_id FROM nodes WHERE parent_id = ? AND name_string_id = ?", parentNodeId, nameStringId)
+	err := row.Scan(&node.Id, &node.TypeStringId)
+	return node, err
+}
+
 // Get the node ID parents of a node
 func (n *nodes) GetParentsNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
 	if nodeId == 0 {
@@ -348,6 +384,22 @@ func (n *nodes) GetParentsNodeIds(db *sql.DB, nodeId int64) ([]int64, error) {
 
 	var parents_ids_str string
 	row := db.QueryRow("SELECT parents FROM nodes WHERE id = ?", nodeId)
+	err := row.Scan(&parents_ids_str)
+	if err != nil {
+		return []int64{}, err
+	} else {
+		return NodeUtils.StringToIds(parents_ids_str)
+	}
+}
+
+// Get the node ID parents of a node
+func (n *nodes) GetParentsNodeIdsTx(tx *sql.Tx, nodeId int64) ([]int64, error) {
+	if nodeId == 0 {
+		return []int64{}, nil
+	}
+
+	var parents_ids_str string
+	row := tx.QueryRow("SELECT parents FROM nodes WHERE id = ?", nodeId)
 	err := row.Scan(&parents_ids_str)
 	if err != nil {
 		return []int64{}, err

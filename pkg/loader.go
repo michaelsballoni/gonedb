@@ -12,7 +12,7 @@ type loader struct{}
 var Loader loader
 
 // Load a file system directory into a node
-func (loader *loader) Load(db *sql.DB, curPath string, curNode Node) error {
+func (loader *loader) Load(tx *sql.Tx, curPath string, curNode Node) error {
 	// Get the file system entries at the current level
 	//fmt.Printf("Load: %s\n", curPath)
 	entries, entry_err := os.ReadDir(curPath)
@@ -25,16 +25,16 @@ func (loader *loader) Load(db *sql.DB, curPath string, curNode Node) error {
 	for _, entry := range entries {
 		// get the node's name
 		name := entry.Name()
-		name_string_id, str_err := Strings.GetId(db, name)
+		name_string_id, str_err := Strings.GetIdTx(tx, name)
 		if str_err != nil {
 			return str_err
 		}
 
 		// get or create the child node
-		new_node, node_err := Nodes.GetNodeInParent(db, curNode.Id, name_string_id)
+		new_node, node_err := Nodes.GetNodeInParentTx(tx, curNode.Id, name_string_id)
 		if new_node.Id < 0 {
 			var new_node_type_id int64 = 0
-			new_node, node_err = Nodes.Create(db, curNode.Id, name_string_id, new_node_type_id)
+			new_node, node_err = Nodes.CreateTx(tx, curNode.Id, name_string_id, new_node_type_id)
 		}
 		if node_err != nil {
 			return node_err
@@ -43,7 +43,7 @@ func (loader *loader) Load(db *sql.DB, curPath string, curNode Node) error {
 		// recurse on sub-child-dirs
 		if entry.IsDir() {
 			abs_path := filepath.Join(curPath, name)
-			load_err := loader.Load(db, abs_path, new_node)
+			load_err := loader.Load(tx, abs_path, new_node)
 			if load_err != nil {
 				return load_err
 			}

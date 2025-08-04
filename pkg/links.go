@@ -90,7 +90,7 @@ func (l *links) GetPayload(db *sql.DB, linkId int64) (string, error) {
 // Set the payload of a link
 func (l *links) SetPayload(db *sql.DB, linkId int64, payload string) error {
 	if linkId == 0 {
-		return fmt.Errorf("Cannot set payload on null link")
+		return fmt.Errorf("cannot set payload on null link")
 	}
 
 	result, err := db.Exec("UPDATE links SET payload = ? WHERE id = ?", payload, linkId)
@@ -102,7 +102,7 @@ func (l *links) SetPayload(db *sql.DB, linkId int64, payload string) error {
 		return affected_err
 	}
 	if affected != 1 {
-		return fmt.Errorf("Row not affected")
+		return fmt.Errorf("row not affected")
 	} else {
 		return nil
 	}

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -23,7 +24,11 @@ func TestLoader(t *testing.T) {
 	test_path := filepath.Dir(exe_path) + string(filepath.Separator) + ".." + string(filepath.Separator)
 
 	// do the load
-	load_err := gonedb.Loader.Load(db, test_path, root_node)
+	tx, tx_err := db.BeginTx(context.Background(), nil)
+	AssertNoError(tx_err)
+	load_err := gonedb.Loader.Load(tx, test_path, root_node)
+	AssertNoError(load_err)
+	tx_err = tx.Commit()
 	AssertNoError(load_err)
 
 	// ensure it all worked out

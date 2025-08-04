@@ -1,6 +1,7 @@
 package gonedb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"math/rand"
@@ -51,7 +52,15 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("seed command takes one parameter, the file system directory path to seed the current node with")
 		}
-		err = c.Seed(db, cmds[1])
+		tx, tx_err := db.BeginTx(context.Background(), nil)
+		if tx_err != nil {
+			err = tx_err
+		} else {
+			err = c.Seed(tx, cmds[1])
+			if err == nil {
+				err = tx.Commit()
+			}
+		}
 	case "cd":
 		if len(cmds) != 2 {
 			return "", fmt.Errorf("cd command takes one parameter, the path to change to")
@@ -150,8 +159,8 @@ func (c *cmd_struct) GetPrompt(db *sql.DB) (string, error) {
 
 // Seed the current node with the given file system directory,
 // adding all file system entries in the directories as children of the current gonedb node
-func (c *cmd_struct) Seed(db *sql.DB, dirPath string) error {
-	load_err := Loader.Load(db, dirPath, c.Cur)
+func (c *cmd_struct) Seed(tx *sql.Tx, dirPath string) error {
+	load_err := Loader.Load(tx, dirPath, c.Cur)
 	return load_err
 }
 
