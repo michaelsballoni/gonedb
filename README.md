@@ -63,12 +63,12 @@ Same with payloads and properties, you only pay for what you use
 - SetPayload(db, nodeId, payload) error
 
 ## Links
-type Link struct {
-	Id           int64
-	FromNodeId   int64
-	ToNodeId     int64
-	TypeStringId int64
-}
+    type Link struct {
+        Id           int64
+        FromNodeId   int64
+        ToNodeId     int64
+        TypeStringId int64
+    }
 
 Links.Create(db, fromNodeId, toNodeId, typeStringId) (Link, error)
  - you create links from one node to another (or the same) node
@@ -110,25 +110,26 @@ You can search on
 - Node descendant
 
 Searching is performed using:
-
 - Search.FindNodes(db, searchQuery *SearchQuery) ([]Node, error)
 or
 - Search.FindLinks(db, searchQuery *SearchQuery) ([]Link, error)
 
-type SearchQuery struct {
-	Criteria       []SearchCriteria
-	OrderBy        string
-	OrderAscensing bool
-	Limit          int64
-}
+Here are the structs you pass into the functions:
 
-type SearchCriteria struct {
-	NameStringId int64
-	ValueString  string
-	UseLike      bool
-}
+    type SearchQuery struct {
+        Criteria       []SearchCriteria
+        OrderBy        string
+        OrderAscensing bool
+        Limit          int64
+    }
 
-And that's all of search: you give it criteria, it ANDs it all together and gives you results
+    type SearchCriteria struct {
+        NameStringId int64
+        ValueString  string
+        UseLike      bool
+    }
+
+And that's all of search: you give it sensible criteria, it ANDs it all together and gives you sensible results
 
 ## Cloud
 You start with a node and follow links to expand a group of nodes, links really, a cloud.  Cloud computing, no?
