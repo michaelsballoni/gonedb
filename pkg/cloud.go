@@ -60,12 +60,12 @@ func (c *Cloud) Init(db *sql.DB) error {
 		return nil
 	}
 
-	_, db_err = db.Exec(fmt.Sprintf("CREATE INDEX link_from_%d ON %s (from_node_id, to_node_id)", c.m_seedNodeId, c.m_tableName))
+	_, db_err = db.Exec(fmt.Sprintf("CREATE UNIQUE INDEX link_from_%d ON %s (from_node_id, to_node_id)", c.m_seedNodeId, c.m_tableName))
 	if db_err != nil {
 		return nil
 	}
 
-	_, db_err = db.Exec(fmt.Sprintf("CREATE INDEX link_to_%d ON %s (to_node_id, from_node_id)", c.m_seedNodeId, c.m_tableName))
+	_, db_err = db.Exec(fmt.Sprintf("CREATE UNIQUE INDEX link_to_%d ON %s (to_node_id, from_node_id)", c.m_seedNodeId, c.m_tableName))
 	if db_err != nil {
 		return nil
 	}

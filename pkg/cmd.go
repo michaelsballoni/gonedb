@@ -167,8 +167,11 @@ func (c *cmd_struct) Seed(tx *sql.Tx, dirPath string) error {
 // Update the current node to point to a new path
 func (c *cmd_struct) Cd(db *sql.DB, newPath string) error {
 	if newPath == ".." {
-		c.Cur.Id = c.Cur.ParentId
-		return nil
+		new_cur, new_err := Nodes.Get(db, c.Cur.ParentId)
+		if new_err == nil {
+			c.Cur = new_cur
+		}
+		return new_err
 	}
 	nodes_path, nodes_path_err := NodePaths.GetStrNodes(db, strings.Split(newPath, "/"))
 	if nodes_path_err != nil {
