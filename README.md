@@ -5,27 +5,38 @@ gonedb is a file-based graph DB library that gives you the power of a graph DB i
 
 As far as gonedb goes, being a graph database is nothing fancier than nodes with optional payloads, links between nodes with optional payloads, and name-value properties on nodes and links
 
-The best way to dive in is to check out the pkg/cmd.go class and run the associated cmd application so you can play around
+The best way to dive in is to check out cmd application and its associated pkg/cmd.go class
 
-Run these commands to flex things a bit:
+Run these commands to flex things at your prompt:
 
+    C:\Users\...\source\gonedb\cmd> go run cmd.go cmd-test.db
+    db_file: cmd-test.db file_exists: false
+    Opening database...
+    SQLite version: 3.46.1
+    Setting up gonedb schema...done!
+    >    
     > make root
     > cd root
     root> seed ..\..
     root> scramblelinks
+    links created: 635
     root> bloomcloud
 
-seed walks the file system at the path adding nodes to the current node, recursively.
-Use whatever directory path relative to the cwd, or absolute directory path, that will give you 1000's of file system entries, without blowing up your system
-I use ..\.. as it blows up nicely on my system
+make creates a new node with the given name in the current node
+seed walks the file system at the path, adding nodes to the current node, recursively
+Use whatever directory path relative to the cwd, or absolute directory path, that will give you lots of file system entries
+I use ..\\.. as it blows up nicely on my system
 
-scramblelinks walks the count of all nodes adding links between a random from node and a random to node.
+scramblelinks walks all nodes adding random links
 
-bloomcloud builds a cloud using the current node as seed, then extends out three generations, outputting the new links at each go.  This can really blow up your console!
+bloomcloud builds a cloud using the current node as seed, then expands out three generations, outputting the new links at each iteration.  This can really blow up your console!
 
 ## So What Is GoneDB for?
-You add your nodes and links with payloads and properties to the database, then you can search for nodes and links\
-You can create "clouds" of links growing out from a seed node and enumerate the generations of nodes and links that bloomed
+You add your nodes and links with payloads and properties to the database\
+Then you can traverse nodes using the tree, or using links, and you can search for nodes and links\
+You can create clouds of links growing out from a seed node, and enumerate the generations of nodes and links that bloomed
+
+# Reference
 
 ## Nodes
     type Node struct {
