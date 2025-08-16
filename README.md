@@ -20,6 +20,7 @@ Then you can...
 - More background on graph databases can be found on [Wikipedia](https://en.wikipedia.org/wiki/Graph_database)
 - Install Go [here](https://go.dev/doc/install)
 - Install SQLite on Go [here](https://medium.com/@yaravind/go-sqlite-on-windows-f91ef2dacfe)
+- [API Reference](#api-reference)
 
 ## Getting Started - POC cmd program
 The best way to dive into gonedb in is to check out the cmd application and its associated pkg/cmd.go class below
@@ -36,7 +37,7 @@ So enjoy this cmd.go stuff, just know that it's just a POC, not the gonedb for y
     Setting up gonedb schema...done!
     > rem rem is just for rem-arkihng on the other commands
     > rem That db_file, Opening database, that's a header as part of running the cmd POC
-    >
+
     > rem To create a node you run the *make* command, specifying just the name of the node
     > make root
     > rem To list the name paths of the direct descendants of a node use the *dir* command
@@ -209,7 +210,7 @@ Remember, this has been a POC for the purpose of this walkthrough.  Do not use i
 
 The documentation of the gonedb API is where the road really hits the road, I hope you've stuck around for that.
 
-# Reference
+# API Reference
 
 ## Nodes
     type Node struct {
