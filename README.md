@@ -1,40 +1,213 @@
 # gonedb
-gonedb is a file-based graph DB library that gives you the power of a graph DB in your Go program
-- No server required, just storage for a single database file
+
+## So What Is gonedb for?
+gonedb gives you the power of a graph DB in your Go program
+
+As far as gonedb goes, being a graph database is nothing fancier than...
++ nodes with optional payloads
++ links between nodes with optional payloads
++ and name-value properties on nodes and links
+
+Then you can...
+- Add graph nodes with parent relationships, names, custom payloads, and properties
+- Add graph links with a from and to node relationships, custom payloads, and properties
+- Traverse graphs via parent or link relationships
+- Search nodes and links by name, payload, or properties
+- Generate "clouds" of connected links growing out from a seed node
+
+## Background & Installation
+- No server required, just storage for a single database file (SQLite)
 - More background on graph databases can be found on [Wikipedia](https://en.wikipedia.org/wiki/Graph_database)
+- Install Go [here](https://go.dev/doc/install)
+- Install SQLite on Go [here](https://medium.com/@yaravind/go-sqlite-on-windows-f91ef2dacfe)
 
-As far as gonedb goes, being a graph database is nothing fancier than nodes with optional payloads, links between nodes with optional payloads, and name-value properties on nodes and links
+## Getting Started - POC cmd program
+The best way to dive into gonedb in is to check out the cmd application and its associated pkg/cmd.go class below
 
-The best way to dive in is to check out cmd application and its associated pkg/cmd.go class
-
-Run these commands to flex things at your prompt:
+NOTE: VERY IMPORTANT: 
+The cmd application and its cmd.go class are NOT how you use gonedb.  
+You would use classes like pkg/nodes.go and others described after this POC sample to add gonedb to your own application.\
+So enjoy this cmd.go stuff, just know that it's just a POC, not the gonedb for you to use.
 
     C:\Users\...\source\gonedb\cmd> go run cmd.go cmd-test.db
     db_file: cmd-test.db file_exists: false
     Opening database...
     SQLite version: 3.46.1
     Setting up gonedb schema...done!
-    >    
+    > rem rem is just for rem-arkihng on the other commands
+    > rem That db_file, Opening database, that's a header as part of running the cmd POC
+    >
+    > rem To create a node you run the *make* command, specifying just the name of the node
     > make root
-    > cd root
-    root> seed ..\..
+    > rem To list the name paths of the direct descendants of a node use the *dir* command
+    > dir
+    root
+
+    > rem Let's make a new node inside root, and try the commands again
+    > rem First we change the current node to root
+    > cd /root
+    root> rem Notice that the command prompt includes root now
+    root> 
+    root> rem Now we make a child node
+    root> make child1
+    root> rem And let's see the full paths of nodes directly inside root with the *dir* command
+    root> dir
+    root/child1
+
+    root> rem Let's create a couple grandchildren; full paths are needed in most situations with most commands
+    root> cd /root/child1
+    root/child1> make grandchild1
+    root/child1> make grandchild2
+    root/child1> dir
+    root/child1/grandchild1
+    root/child1/grandchild2
+
+    root/child1> rem Now let's create new a child of root, and make a *copy* of child1 in it
+    root/child1> cd /root
+    root> make child2
+    root> dir
+    root/child1
+    root/child2
+    root> cd /root/child1
+    root/child1> tell
+        ID: 2
+        Name: child1
+        Parent: root
+        Payload:
+        Properties: (none)
+        Out Links: (none)
+        In Links: (none)
+
+    root/child1>
+    root/child1> copy /root/child2
+    root/child1> cd /root/child2
+    root/child2> dir
+    root/child2/child1
+
+    root/child2> cd /root/child2/child1
+    root/child2/child1> dir
+    root/child2/child1/grandchild1
+    root/child2/child1/grandchild2
+
+    root/child2/child1> cd /root
+    root> rem You see that child1 was copied under child2,
+    root> rem and child1's children were copied over as well
+
+    root> rem Let's make a new child3 under root and *move* child1's second grandchild under it
+    root> make child3
+    root> dir
+    root/child1
+    root/child2
+    root/child3
+
+    root> cd /root/child2/child1/grandchild2
+    root/child2/child1/grandchild2> move /root/child3
+    root/child3/grandchild2> cd /root/child3
+    root/child3> dir
+    root/child3/grandchild2
+
+    root/child3> cd /root
+    root> rem You see that grandchild2 was copied under child3
+
+    root> rem Let's *remove* the child1 copy from child2
+    root> cd root/child2/child1
+    root/child2/child1> remove
+    root/child2> dir
+    root/child2> cd /root
+    root> rem You see that nothing was output by child2's dir; child1's copy is no longer in child2
+
+    root> rem Let's *rename* child3 to child0
+    root> cd /root/child3
+    root/child3> rename child0
+    root/child0> tell
+        ID: 9
+        Name: child0
+        Parent: root
+        ...
+    root/child0> cd /root
+
+    root> rem Let's put a property on child0 and use *search* to find it by name and by property
+    root> cd child0
+    root/child0> setprop property-name property-value
+    root/child0> search property-name not-the-right-value
+    root/child0> search property-name property-value
+    root/child0
+
+    root/child0> search name child-wrong-name
+    root/child0> search name child0
+    root/child0
+
+    root/child0> cd /root
+
+    root> rem Let's set the payload on child0 and view it using tell
+    root> cd child0
+    root/child0> setpayload "this is the payload"
+    root/child0> tell
+        ID: 9
+        Name: child0
+        Parent: root
+        Payload: this is the payload
+        Properties:
+        property-name property-value
+        ...
+    root/child0> cd /root
+
+    root> rem Let's *link* child0 to child1, tell child0, then *unlink* the two and tell again
+    root> cd child0
+    root/child0> link root/child1
+    root/child0> tell
+        ID: 9
+        Name: child0
+        ...
+        Out Links: (1)
+        root/child1
+        In Links: (none)
+    root/child0> unlink root/child1
+        root/child0> tell
+        ID: 9
+        Name: child0
+        ...
+        Out Links: (none)
+        In Links: (none)
+    root/child0> cd /root
+
+    root> rem You can use the gonedb you've glimpsed above, it's wonderful.  But maybe you need a little magic.
+
+    root> rem First we issue the scramblelinks command which creates random links between all the nodes
+    root> rem Again, this is totally POC, you would probably never want to do this in real code.  
+    root> rem And it can't be undone.  
+    root> rem But if you need a lot of links, this does the job.
     root> scramblelinks
-    links created: 635
+    links created: 6
+
+    root> rem Then we cast our magic wand, bloomcloud, which takes the current node as the seed of blowing up generations of links
+    root> rem It manages a database table for each cloud, and each cloud table is a list of links
+    root> rem Each expansion grows the cloud to include links that either...
+    root> rem A) link from outside the cloud into a node in the cloud
+    root> rem B) link from inside the cloud out to a node outside the cloud
+    root> rem bloomcloud does out to three expansions
+
     root> bloomcloud
+    Gen: 1
+    Gen: 1 - Added: 3
+    3 4
+    3 9
+    8 3
 
-make creates a new node with the given name in the current node
-seed walks the file system at the path, adding nodes to the current node, recursively
-Use whatever directory path relative to the cwd, or absolute directory path, that will give you lots of file system entries
-I use ..\\.. as it blows up nicely on my system
+    Gen: 2
+    Gen: 2 - Added: 2
+    9 4
+    9 2
 
-scramblelinks walks all nodes adding random links
+    Gen: 3
+    Gen: 3 - Added: 0
+    root> rem After the "Added: " lines, each line is a link, from node ID, space, to node ID
 
-bloomcloud builds a cloud using the current node as seed, then expands out three generations, outputting the new links at each iteration.  This can really blow up your console!
+And that's it.  
 
-## So What Is GoneDB for?
-You add your nodes and links with payloads and properties to the database\
-Then you can traverse nodes using the tree, or using links, and you can search for nodes and links\
-You can create clouds of links growing out from a seed node, and enumerate the generations of nodes and links that bloomed
+Remember, this has been a POC for the purpose of this walkthrough.  Do not use it for any production work.  
+
+The documentation of the gonedb API is where the road really hits the road, I hope you've stuck around for that.
 
 # Reference
 
@@ -167,3 +340,6 @@ Cloud.GaxMaxGeneration(db) (int64, error)
 
 Cloud.Expand(db *sql.DB) (int64, error)
 - expand the cloud out one generation; returns the number of links added
+- each expansion grows the cloud to include links that either:
+- link from outside the cloud into a node in the cloud
+- link from inside the cloud out to a node outside the cloud

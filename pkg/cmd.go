@@ -31,6 +31,7 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 	default:
 		return "", fmt.Errorf("unrecognized command: %s", lower_cmd)
 	case "help":
+		output += "rem - does nothing, just for documenting commands\n"
 		output += "tell - dump all info about the current node\n"
 		output += "seed - seed the current node with a file system directory\n"
 		output += "cd - change the current node to another node\n"
@@ -148,6 +149,7 @@ func (c *cmd_struct) ProcessCommand(db *sql.DB, cmd string) (string, error) {
 			return "", fmt.Errorf("dropcloud takes no arguments, it works on the current node")
 		}
 		err = c.DropCloud(db)
+	case "rem":
 	}
 	return output, err
 }
@@ -527,9 +529,8 @@ func (c *cmd_struct) BloomCloud(db *sql.DB) (string, error) {
 			return "", links_err
 		}
 
-		builder.WriteString(fmt.Sprintf("Gen: %d - Count: %d\n", gen, len(links)))
 		for _, link := range links {
-			builder.WriteString(fmt.Sprintln(link.Id, link.FromNodeId, link.ToNodeId, link.TypeStringId))
+			builder.WriteString(fmt.Sprintln(link.FromNodeId, link.ToNodeId))
 		}
 		builder.WriteString("\n")
 	}
